@@ -1,5 +1,7 @@
 # @southneuhof/wisp-vue
 
+Agents integrating this package: read the [integration guide](https://github.com/southneuhof/wisp/blob/main/docs/agent-integration.md), also included as `INTEGRATION.md` in this package.
+
 Headless Vue bindings for Wisp's CloudflareOS chat SDK.
 
 ```sh

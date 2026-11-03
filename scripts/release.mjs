@@ -47,9 +47,15 @@ const packages = names.map((directory) => {
   const files = new Set(run('tar', ['-tzf', tarball]).split('\n'))
   for (const file of files)
     assert(
-      /^package\/(dist\/[^\n]+|package\.json|README\.md|LICENSE)$/.test(file),
+      /^package\/(dist\/[^\n]+|package\.json|README\.md|INTEGRATION\.md|LICENSE)$/.test(
+        file,
+      ),
       `Unexpected release file: ${file}`,
     )
+  assert(
+    files.has('package/INTEGRATION.md'),
+    `${manifest.name}: missing agent integration guide`,
+  )
   const packed = JSON.parse(
     run('tar', ['-xOf', tarball, 'package/package.json']),
   )

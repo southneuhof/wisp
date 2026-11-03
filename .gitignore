@@ -6,3 +6,5 @@ artifacts/
 .npmrc
 *.log
 .DS_Store
+
+/packages/*/INTEGRATION.md

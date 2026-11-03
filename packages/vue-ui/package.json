@@ -4,7 +4,8 @@
   "type": "module",
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "INTEGRATION.md"
   ],
   "exports": {
     ".": {
@@ -19,7 +20,7 @@
   "scripts": {
     "build": "vite build && vue-tsc --declaration --emitDeclarationOnly",
     "type-check": "vue-tsc --noEmit",
-    "prepack": "pnpm run build"
+    "prepack": "pnpm run build && node ../../scripts/package-docs.mjs"
   },
   "dependencies": {
     "@assistant-ui/core": "0.3.32",

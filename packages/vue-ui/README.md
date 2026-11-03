@@ -1,5 +1,7 @@
 # @southneuhof/wisp-vue-ui
 
+Agents integrating this package: read the [integration guide](https://github.com/southneuhof/wisp/blob/main/docs/agent-integration.md), also included as `INTEGRATION.md` in this package.
+
 `WispChat` is the default floating Vue interface. It includes the launcher, blurred backdrop, chat/composer transitions, sign-in stage, conversation picker, workspace submenu, model picker, attachments, and message rendering.
 
 ```vue
@@ -46,7 +48,7 @@ Pass a partial `WispChatTheme` through `theme`. Values are CSS colors, so they c
 />
 ```
 
-The palette is applied to the floating panel and all portaled menus. Styles and utility classes use the package's `wisp-` and `wisp-` names, with isolated utility variables and no global reset. Motion respects `prefers-reduced-motion`.
+The palette is applied to the floating panel and all portaled menus. Styles and utility classes use the package's `wisp-` prefix, with isolated utility variables and no global reset. Motion respects `prefers-reduced-motion`.
 
 ## Reusable parts
 

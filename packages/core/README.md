@@ -1,5 +1,7 @@
 # @southneuhof/wisp-core
 
+Agents integrating this package: read the [integration guide](https://github.com/southneuhof/wisp/blob/main/docs/agent-integration.md), also included as `INTEGRATION.md` in this package.
+
 Wisp's framework-independent browser SDK for CloudflareOS. It handles native authentication, workspace selection, conversations, streaming responses, history, attachments, and connection recovery.
 
 ```sh

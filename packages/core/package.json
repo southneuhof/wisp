@@ -4,7 +4,8 @@
   "type": "module",
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "INTEGRATION.md"
   ],
   "exports": {
     ".": {
@@ -16,7 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc --noEmit -p tsconfig.json",
-    "prepack": "pnpm run build"
+    "prepack": "pnpm run build && node ../../scripts/package-docs.mjs"
   },
   "dependencies": {
     "capnweb": "0.12.0",
