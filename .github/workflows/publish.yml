@@ -1,0 +1,46 @@
+name: Publish to npm
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v0.2.0
+        required: true
+        type: string
+      publish:
+        description: Publish after verification (false performs a dry run)
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install --global npm@latest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:prepare
+        if: github.event_name != 'push' && !inputs.publish
+      - run: pnpm release:publish
+        if: github.event_name == 'push' || inputs.publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wisp-release-packages
+          path: artifacts/*.tgz

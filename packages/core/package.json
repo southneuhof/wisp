@@ -1,0 +1,56 @@
+{
+  "name": "@southneuhof/wisp-core",
+  "version": "0.2.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "capnweb": "0.12.0",
+    "hash-wasm": "4.12.0",
+    "zod": "^3.24.0"
+  },
+  "peerDependencies": {},
+  "devDependencies": {},
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "author": "Southneuhof contributors",
+  "homepage": "https://github.com/southneuhof/wisp#readme",
+  "bugs": {
+    "url": "https://github.com/southneuhof/wisp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/southneuhof/wisp.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "description": "Wisp browser SDK for CloudflareOS: authentication, workspaces, streaming chat, and attachments.",
+  "keywords": [
+    "wisp",
+    "cloudflareos",
+    "chat",
+    "streaming",
+    "sdk"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

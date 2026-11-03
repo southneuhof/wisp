@@ -1,0 +1,58 @@
+{
+  "name": "@southneuhof/wisp-vue",
+  "version": "0.2.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@southneuhof/wisp-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "vue": "^3.5.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "author": "Southneuhof contributors",
+  "homepage": "https://github.com/southneuhof/wisp#readme",
+  "bugs": {
+    "url": "https://github.com/southneuhof/wisp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/southneuhof/wisp.git",
+    "directory": "packages/vue"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "description": "Headless Vue bindings for the Wisp CloudflareOS chat SDK.",
+  "keywords": [
+    "wisp",
+    "cloudflareos",
+    "chat",
+    "streaming",
+    "vue"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

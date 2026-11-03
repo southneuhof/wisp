@@ -1,0 +1,51 @@
+{
+  "name": "wisp",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "type-check": "pnpm -r type-check && vue-tsc --noEmit -p tsconfig.examples.json && vue-tsc --noEmit -p tsconfig.tests.json",
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "verify:packages": "node scripts/verify-packages.mjs",
+    "dev": "vite examples/vue-ready-made --host 127.0.0.1",
+    "build:examples": "vite build examples/vanilla && vite build examples/vue-custom && vite build examples/vue-ready-made",
+    "format": "prettier --write packages tests examples scripts README.md docs *.json *.ts *.yaml",
+    "lint": "prettier --check packages tests examples scripts README.md docs *.json *.ts *.yaml",
+    "check": "pnpm lint && pnpm build && pnpm type-check && pnpm test && pnpm build:examples",
+    "release:prepare": "pnpm check && pnpm verify:packages && node scripts/release.mjs --check",
+    "release:publish": "pnpm release:prepare && node scripts/release.mjs --publish",
+    "release:version": "node scripts/set-version.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^26.1.0",
+    "prettier": "3.6.2",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.0",
+    "@southneuhof/wisp-core": "workspace:*",
+    "@southneuhof/wisp-vue": "workspace:*",
+    "@southneuhof/wisp-vue-ui": "workspace:*",
+    "vue": "^3.5.0",
+    "capnweb": "0.12.0"
+  },
+  "version": "0.2.0",
+  "license": "MIT",
+  "author": "Southneuhof contributors",
+  "homepage": "https://github.com/southneuhof/wisp#readme",
+  "bugs": {
+    "url": "https://github.com/southneuhof/wisp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/southneuhof/wisp.git"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "description": "Wisp: a browser SDK and self-contained Vue chat interface for CloudflareOS."
+}

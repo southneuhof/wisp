@@ -1,0 +1,71 @@
+{
+  "name": "@southneuhof/wisp-vue-ui",
+  "version": "0.2.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "vite build && vue-tsc --declaration --emitDeclarationOnly",
+    "type-check": "vue-tsc --noEmit",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@assistant-ui/core": "0.3.32",
+    "@assistant-ui/tap": "0.9.24",
+    "@assistant-ui/vue": "0.0.7",
+    "@southneuhof/wisp-core": "workspace:*",
+    "@southneuhof/wisp-vue": "workspace:*",
+    "marked": "^17.0.1",
+    "reka-ui": "^2.11.0"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "postcss": "^8.5.32",
+    "tailwindcss": "3.4.19",
+    "vue": "^3.5.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "author": "Southneuhof contributors",
+  "homepage": "https://github.com/southneuhof/wisp#readme",
+  "bugs": {
+    "url": "https://github.com/southneuhof/wisp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/southneuhof/wisp.git",
+    "directory": "packages/vue-ui"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "description": "Self-contained floating Vue chat for CloudflareOS, built with assistant-ui and Reka UI.",
+  "keywords": [
+    "wisp",
+    "cloudflareos",
+    "chat",
+    "streaming",
+    "vue",
+    "assistant-ui",
+    "reka-ui"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
