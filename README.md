@@ -129,7 +129,7 @@ In the core package, call `client.auth.setSession(...)` directly. The Vue and Re
 
 ## Compatibility
 
-Wisp currently supports password-enabled CloudflareOS through its native Cap'n Web `/api` interface. The browser must be able to reach the instance, and the instance must permit the app's origin. Cloudflare Access cross-origin sign-in and upstream resource-configuration screens are outside this package.
+Wisp connects to CloudflareOS through its native Cap'n Web `/api` interface. Users can sign in with a password when enabled, or your app can supply a native CloudflareOS session. The browser must be able to reach the instance, and the instance must permit the app's origin. Cloudflare Access cross-origin sign-in and upstream resource-configuration screens are outside this package.
 
 After an uncertain send or workspace-creation error, inspect native history before retrying. Wisp does not resend those mutations automatically. Cancelled uploads may leave bytes already accepted by the server.
 

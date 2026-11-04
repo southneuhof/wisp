@@ -25,7 +25,7 @@ The package verification script checks production builds in a fresh npm consumer
 
 ## Current limits
 
-Initial support targets password-enabled CloudflareOS through its native Cap'n Web `/api` interface. Cloudflare Access cross-origin sign-in and upstream resource-configuration interfaces are outside this package. Configure resources through CloudflareOS.
+Wisp uses CloudflareOS's native Cap'n Web `/api` interface with password sign-in or a validated app-supplied native session. Cloudflare Access cross-origin sign-in and upstream resource-configuration interfaces are outside this package. Configure resources through CloudflareOS.
 
 Sessions automatically restore after a refresh through per-tab sessionStorage, which stores a native token and selections, never passwords. Sign-out clears local state but does not revoke the upstream account token. Cancelled uploads can leave bytes already accepted upstream, and uncertain mutations are not automatically resent. Separate client instances have independent in-memory state.
 

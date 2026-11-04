@@ -55,3 +55,49 @@ test('compares package file bytes while ignoring tar order and platform metadata
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('ignores dependency ordering but preserves meaningful manifest changes', () => {
+  const root = mkdtempSync(join(tmpdir(), 'wisp-manifests-'))
+  try {
+    mkdirSync(join(root, 'package'))
+    function pack(name, manifest) {
+      writeFileSync(
+        join(root, 'package/package.json'),
+        JSON.stringify(manifest),
+      )
+      execFileSync('tar', [
+        '-czf',
+        join(root, name),
+        '-C',
+        root,
+        'package/package.json',
+      ])
+      return join(root, name)
+    }
+    const first = pack('one.tgz', {
+      name: 'wisp',
+      dependencies: { a: '1', b: '2' },
+      exports: { import: './import.js', default: './default.js' },
+    })
+    const reordered = pack('two.tgz', {
+      name: 'wisp',
+      dependencies: { b: '2', a: '1' },
+      exports: { import: './import.js', default: './default.js' },
+    })
+    assert.equal(sameArchiveContents(first, reordered), true)
+    const changed = pack('three.tgz', {
+      name: 'wisp',
+      dependencies: { a: '9', b: '2' },
+      exports: { import: './import.js', default: './default.js' },
+    })
+    assert.equal(sameArchiveContents(first, changed), false)
+    const conditions = pack('four.tgz', {
+      name: 'wisp',
+      dependencies: { a: '1', b: '2' },
+      exports: { default: './default.js', import: './import.js' },
+    })
+    assert.equal(sameArchiveContents(first, conditions), false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
