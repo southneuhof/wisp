@@ -2,7 +2,9 @@
 
 Agents integrating this package: read the [integration guide](https://github.com/southneuhof/wisp/blob/main/docs/agent-integration.md), also included as `INTEGRATION.md` in this package.
 
-`WispChat` is the default floating Vue interface. It includes the launcher, blurred backdrop, chat/composer transitions, sign-in stage, conversation picker, workspace submenu, model picker, attachments, and message rendering.
+Add CloudflareOS to your Vue app with Wisp’s ready-made chat interface. Point `WispChat` at your instance and mount it in your app. Vue is the first supported UI framework; more are planned.
+
+The interface includes the launcher, blurred backdrop, chat/composer transitions, sign-in stage, conversation picker, workspace submenu, model picker, attachments, and message rendering.
 
 ```vue
 <script setup lang="ts">
@@ -11,7 +13,6 @@ import '@southneuhof/wisp-vue-ui/style.css'
 
 const chat = useWispChat({
   url: 'https://os.example.com',
-  sessionPersistence: 'session',
 })
 </script>
 
@@ -22,7 +23,7 @@ const chat = useWispChat({
 
 The component uses assistant-ui's Vue primitives and Reka UI directly. The package includes its own SVG icons, spinner, circular icon button, markdown renderer, and compiled styles. Consumers need Vue 3.5 and the SDK packages; they do not need HKA components, a CSS framework configuration, an icon font, or React aliases. The build handles assistant-ui's standalone shim internally.
 
-The caller owns the chat binding. Closing the panel preserves the session and draft. Unmounting the owner disposes its client. Authentication persistence remains an explicit composable option.
+The caller owns the chat binding. Closing the panel preserves the session and draft. Unmounting the owner disposes its client. Sessions and selections automatically restore after a refresh.
 
 ## Theme
 

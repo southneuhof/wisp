@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vitest/globals", "node", "vite/client"],
+    "noEmit": true
+  },
+  "include": ["tests/react/**/*.tsx", "examples/react-ready-made/**/*.tsx"]
+}

@@ -91,9 +91,12 @@ export type ChatSnapshot =
       readonly workspaces: readonly Workspace[]
       readonly workspace: WorkspaceState
     }
+export interface AuthSession {
+  readonly token: string
+  readonly accountId: string
+}
 export interface ChatOptions {
   readonly url: string
-  readonly sessionPersistence?: 'memory' | 'session'
   readonly modelId?: string
 }
 export interface SendOptions {
@@ -107,6 +110,7 @@ export interface WispChatClient {
   dispose(): void
   readonly auth: {
     signIn(input: { username: string; password: string }): Promise<void>
+    setSession(session: AuthSession | null): Promise<void>
     signOut(): void
   }
   readonly workspaces: {

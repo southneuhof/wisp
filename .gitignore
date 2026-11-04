@@ -8,3 +8,6 @@ artifacts/
 .DS_Store
 
 /packages/*/INTEGRATION.md
+
+/test-results/
+/playwright-report/

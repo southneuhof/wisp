@@ -448,27 +448,32 @@ describe('files, model selection, and persisted sessions', () => {
     await expect(downloading).rejects.toMatchObject({ code: 'cancelled' })
     f.client.dispose()
   })
-  it('never stores default-memory sessions or plaintext passwords', async () => {
+  it('persists sessions by default without storing plaintext passwords', async () => {
     const f = setup()
-    await login(f)
-    expect(sessionStorage.length).toBe(0)
+    await f.client.auth.signIn({
+      username: 'alice',
+      password: 'private-password',
+    })
+    expect(sessionStorage.length).toBeGreaterThan(0)
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain(
+      'private-password',
+    )
     f.client.dispose()
   })
-  it('restores an opted-in per-tab session and clears it on sign out', async () => {
+  it('restores a default per-tab session and clears it on sign out', async () => {
     const f = setup()
     const first = createWispChat({
       url: 'http://os.example',
-      sessionPersistence: 'session',
     })
     await first.auth.signIn({ username: 'alice', password: 'private-password' })
     await first.workspaces.select('a')
+    await first.conversations.select(1)
     expect(sessionStorage.key(0)).toMatch(/^os-chat:/)
     expect(JSON.stringify({ ...sessionStorage })).not.toContain(
       'private-password',
     )
     const second = createWispChat({
       url: 'http://os.example',
-      sessionPersistence: 'session',
     })
     await second.start()
     const s = second.getSnapshot()
@@ -478,10 +483,133 @@ describe('files, model selection, and persisted sessions', () => {
         s.workspace.status === 'ready' &&
         s.workspace.workspace.id,
     ).toBe('a')
+    expect(
+      s.status === 'authenticated' &&
+        s.workspace.status === 'ready' &&
+        s.workspace.conversation.status === 'conversation' &&
+        s.workspace.conversation.id,
+    ).toBe(1)
     second.auth.signOut()
     expect(sessionStorage.length).toBe(0)
     first.dispose()
     second.dispose()
+    f.client.dispose()
+  })
+})
+
+describe('application session handoff', () => {
+  it('clears a persisted session when the app starts signed out before client startup', async () => {
+    const f = setup()
+    await login(f)
+    f.client.dispose()
+    const fresh = createWispChat({ url: 'http://os.example' })
+    await fresh.auth.setSession(null)
+    await fresh.start()
+    expect(fresh.getSnapshot().status).toBe('signed-out')
+    expect(sessionStorage.length).toBe(0)
+    fresh.dispose()
+  })
+  it('does not fall back to a persisted account after a rejected initial handoff', async () => {
+    const f = setup()
+    await login(f)
+    f.client.dispose()
+    const fresh = createWispChat({ url: 'http://os.example' })
+    await expect(
+      fresh.auth.setSession({ token: 'wrong', accountId: 'bob' }),
+    ).rejects.toMatchObject({ code: 'credentials' })
+    expect(fresh.getSnapshot().status).toBe('signed-out')
+    expect(sessionStorage.length).toBe(0)
+    fresh.dispose()
+  })
+  it('validates the supplied token without password login and restores it after refresh', async () => {
+    const f = setup()
+    f.api.getServerConfig.mockResolvedValue({ passwordAuthEnabled: false })
+    await f.client.auth.setSession({ token: 'app-token', accountId: 'alice' })
+    expect(f.api.authenticate).toHaveBeenCalledWith('app-token')
+    expect(f.api.login).not.toHaveBeenCalled()
+    expect(network.hash).not.toHaveBeenCalled()
+    expect(f.client.getSnapshot()).toMatchObject({
+      status: 'authenticated',
+      account: { id: 'alice' },
+    })
+    expect(JSON.stringify(f.client.getSnapshot())).not.toContain('app-token')
+    f.client.dispose()
+    const restored = createWispChat({ url: 'http://os.example' })
+    await restored.start()
+    expect(restored.getSnapshot()).toMatchObject({
+      status: 'authenticated',
+      account: { id: 'alice' },
+    })
+    await restored.auth.setSession(null)
+    expect(restored.getSnapshot().status).toBe('signed-out')
+    expect(sessionStorage.length).toBe(0)
+    restored.dispose()
+  })
+  it('rejects an identity mismatch and clears the previous account and history', async () => {
+    const f = setup()
+    await login(f)
+    await f.client.workspaces.select('a')
+    await f.client.conversations.select(1)
+    await expect(
+      f.client.auth.setSession({
+        token: 'wrong-account-token',
+        accountId: 'bob',
+      }),
+    ).rejects.toMatchObject({ code: 'credentials' })
+    expect(f.client.getSnapshot().status).toBe('signed-out')
+    expect(sessionStorage.length).toBe(0)
+    expect(f.a.value[Symbol.dispose]).toHaveBeenCalled()
+    f.client.dispose()
+  })
+  it('rejects empty or expired session tokens without persisting them', async () => {
+    const f = setup()
+    await expect(
+      f.client.auth.setSession({ token: '', accountId: 'alice' }),
+    ).rejects.toMatchObject({ code: 'credentials' })
+    expect(f.api.authenticate).not.toHaveBeenCalled()
+    f.api.authenticate.mockRejectedValueOnce(new Error('expired'))
+    await expect(
+      f.client.auth.setSession({ token: 'expired-token', accountId: 'alice' }),
+    ).rejects.toMatchObject({ code: 'credentials' })
+    expect(sessionStorage.length).toBe(0)
+    expect(f.client.getSnapshot().status).toBe('signed-out')
+    f.client.dispose()
+  })
+  it('keeps a cleared app session signed out when validation finishes late', async () => {
+    const f = setup()
+    const identity = deferred<{ id: string; name: string }>()
+    f.account.whoami.mockReturnValueOnce(identity.promise)
+    const pending = f.client.auth.setSession({
+      token: 'app-token',
+      accountId: 'alice',
+    })
+    await vi.waitFor(() => expect(f.account.whoami).toHaveBeenCalled())
+    await f.client.auth.setSession(null)
+    identity.resolve({ id: 'alice', name: 'Alice' })
+    await pending
+    expect(f.client.getSnapshot().status).toBe('signed-out')
+    expect(sessionStorage.length).toBe(0)
+    f.client.dispose()
+  })
+  it('keeps the latest app account when an earlier validation finishes late', async () => {
+    const f = setup()
+    const identity = deferred<{ id: string; name: string }>()
+    f.account.whoami.mockReturnValueOnce(identity.promise)
+    const first = f.client.auth.setSession({
+      token: 'alice-token',
+      accountId: 'alice',
+    })
+    await vi.waitFor(() => expect(f.account.whoami).toHaveBeenCalled())
+    f.account.whoami.mockResolvedValue({ id: 'bob', name: 'Bob' })
+    await f.client.auth.setSession({ token: 'bob-token', accountId: 'bob' })
+    identity.resolve({ id: 'alice', name: 'Alice' })
+    await first
+    expect(f.client.getSnapshot()).toMatchObject({
+      status: 'authenticated',
+      account: { id: 'bob' },
+      workspace: { status: 'none' },
+    })
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain('alice-token')
     f.client.dispose()
   })
 })
@@ -664,18 +792,16 @@ it('does not claim remote cancellation if creation fails before its id is known'
   f.client.dispose()
 })
 
-it('preserves opted-in sessions on dispose and clears them only on sign out', async () => {
+it('preserves sessions on dispose and clears them only on sign out', async () => {
   const f = setup()
   const first = createWispChat({
     url: 'http://os.example',
-    sessionPersistence: 'session',
   })
   await first.auth.signIn({ username: 'alice', password: 'private' })
   await first.workspaces.select('a')
   first.dispose()
   const second = createWispChat({
     url: 'http://os.example',
-    sessionPersistence: 'session',
   })
   await second.start()
   expect(second.getSnapshot().status).toBe('authenticated')

@@ -76,25 +76,3 @@ async function download() {
     >
   </div>
 </template>
-
-<style scoped>
-.wisp-attachment {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.wisp-attachment img {
-  max-width: 100%;
-  max-height: 240px;
-  border-radius: 8px;
-}
-.wisp-attachment button {
-  border: 1px solid var(--wisp-border, #dbe1eb);
-  border-radius: 8px;
-  padding: 6px 10px;
-  background: var(--wisp-menu-bg, #f1f4f6);
-  color: var(--wisp-fg, #172033);
-  font: inherit;
-}
-</style>

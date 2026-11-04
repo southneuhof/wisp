@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { sameArchiveContents } from './archive.mjs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const root = process.cwd()
 const repository = 'git+https://github.com/southneuhof/wisp.git'
-const names = ['core', 'vue', 'vue-ui']
+const names = ['core', 'vue', 'vue-ui', 'react', 'react-ui']
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 const workspace = readJson(resolve(root, 'package.json'))
 const publish = process.argv.includes('--publish')
@@ -85,12 +87,13 @@ const packages = names.map((directory) => {
       files.has(`package/dist/${file}`),
       `${manifest.name}: missing ${file}`,
     )
-  if (directory === 'vue-ui') {
-    assert(files.has('package/dist/style.css'), 'Missing Vue UI stylesheet')
-    assert(
-      files.has('package/dist/THIRD_PARTY_NOTICES.txt'),
-      'Missing bundled dependency notices',
-    )
+  if (directory.endsWith('-ui')) {
+    assert(files.has('package/dist/style.css'), 'Missing UI stylesheet')
+    if (directory === 'vue-ui')
+      assert(
+        files.has('package/dist/THIRD_PARTY_NOTICES.txt'),
+        'Missing bundled dependency notices',
+      )
   }
   const integrity = `sha512-${createHash('sha512').update(readFileSync(tarball)).digest('base64')}`
   console.log(`${manifest.name}@${manifest.version}: release contents verified`)
@@ -125,19 +128,44 @@ for (const { manifest, tarball, integrity } of packages) {
     [
       'view',
       `${manifest.name}@${manifest.version}`,
-      'dist.integrity',
+      'dist',
       '--json',
       '--registry=https://registry.npmjs.org/',
     ],
     { encoding: 'utf8' },
   )
   if (existing.status === 0) {
+    const published = JSON.parse(existing.stdout)
+    let matches = published.integrity === integrity
+    if (!matches) {
+      assert(
+        typeof published.tarball === 'string' &&
+          published.tarball.startsWith('https://registry.npmjs.org/'),
+        'Unexpected registry tarball URL',
+      )
+      const response = await fetch(published.tarball)
+      assert(response.ok, 'Could not download published package for comparison')
+      const bytes = Buffer.from(await response.arrayBuffer())
+      assert(
+        `sha512-${createHash('sha512').update(bytes).digest('base64')}` ===
+          published.integrity,
+        'Published tarball integrity mismatch',
+      )
+      const temporary = mkdtempSync(resolve(tmpdir(), 'wisp-release-'))
+      try {
+        const path = resolve(temporary, 'published.tgz')
+        writeFileSync(path, bytes)
+        matches = sameArchiveContents(path, tarball)
+      } finally {
+        rmSync(temporary, { recursive: true, force: true })
+      }
+    }
     assert(
-      JSON.parse(existing.stdout) === integrity,
+      matches,
       `${manifest.name}@${manifest.version} exists with different contents; choose a new version`,
     )
     console.log(
-      `${manifest.name}@${manifest.version} already published with matching contents`,
+      `${manifest.name}@${manifest.version} already published with matching package files`,
     )
     continue
   }

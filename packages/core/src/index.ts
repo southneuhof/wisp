@@ -1,6 +1,7 @@
 export { createWispChat, ChatClientError } from './client.js'
 export type {
   Account,
+  AuthSession,
   Attachment,
   ChatError,
   ChatOptions,

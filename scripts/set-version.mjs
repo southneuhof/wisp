@@ -9,7 +9,9 @@ if (
   throw new Error('Usage: pnpm release:version <semver>')
 for (const path of [
   'package.json',
-  ...['core', 'vue', 'vue-ui'].map((name) => `packages/${name}/package.json`),
+  ...['core', 'vue', 'vue-ui', 'react', 'react-ui'].map(
+    (name) => `packages/${name}/package.json`,
+  ),
 ]) {
   const manifest = JSON.parse(readFileSync(path, 'utf8'))
   manifest.version = version

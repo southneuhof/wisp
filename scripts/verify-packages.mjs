@@ -15,7 +15,7 @@ function run(command, args, cwd = root) {
   if (result.status !== 0)
     throw new Error(`${command} ${args.join(' ')} failed`)
 }
-for (const name of ['core', 'vue', 'vue-ui'])
+for (const name of ['core', 'vue', 'vue-ui', 'react', 'react-ui'])
   run(
     'pnpm',
     ['pack', '--pack-destination', artifacts],
@@ -55,7 +55,7 @@ run(
     '--ignore-scripts',
     '--no-audit',
     '--no-fund',
-    ...['core', 'vue', 'vue-ui'].map((name) => {
+    ...['core', 'vue', 'vue-ui', 'react', 'react-ui'].map((name) => {
       const manifest = JSON.parse(
         readFileSync(resolve(root, 'packages', name, 'package.json'), 'utf8'),
       )
@@ -184,3 +184,92 @@ run(
   consumer,
 )
 console.log('Packed consumer build and dependency-boundary checks passed')
+
+// Verify the React UI with a standard consumer: no Vue or React aliases.
+const reactConsumer = resolve(artifacts, 'react-consumer')
+rmSync(reactConsumer, { recursive: true, force: true })
+mkdirSync(reactConsumer)
+writeFileSync(
+  resolve(reactConsumer, 'package.json'),
+  JSON.stringify({
+    name: 'react-package-verification',
+    private: true,
+    type: 'module',
+  }),
+)
+run(
+  'npm',
+  [
+    'install',
+    '--ignore-scripts',
+    '--no-audit',
+    '--no-fund',
+    ...['core', 'react', 'react-ui'].map((name) =>
+      resolve(
+        artifacts,
+        `southneuhof-wisp-${name}-${JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version}.tgz`,
+      ),
+    ),
+    'react@^19',
+    'react-dom@^19',
+  ],
+  reactConsumer,
+)
+writeFileSync(
+  resolve(reactConsumer, 'index.html'),
+  '<div id="app"></div><script type="module" src="/main.tsx"></script>',
+)
+writeFileSync(
+  resolve(reactConsumer, 'main.tsx'),
+  readFileSync(resolve(root, 'examples/react-ready-made/main.tsx'), 'utf8'),
+)
+writeFileSync(
+  resolve(reactConsumer, 'vite.config.mjs'),
+  "import {defineConfig} from 'vite';export default defineConfig({esbuild:{jsx:'automatic'}})",
+)
+run('pnpm', [
+  'exec',
+  'vite',
+  'build',
+  reactConsumer,
+  '--config',
+  resolve(reactConsumer, 'vite.config.mjs'),
+])
+writeFileSync(
+  resolve(reactConsumer, 'tsconfig.json'),
+  JSON.stringify({
+    compilerOptions: {
+      target: 'ES2022',
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      jsx: 'react-jsx',
+      strict: true,
+      skipLibCheck: true,
+      lib: ['ES2022', 'DOM'],
+      types: ['vite/client'],
+    },
+    include: ['*.tsx'],
+  }),
+)
+run('pnpm', [
+  'exec',
+  'tsc',
+  '--noEmit',
+  '-p',
+  resolve(reactConsumer, 'tsconfig.json'),
+])
+for (const forbidden of [
+  'vue',
+  '@southneuhof/wisp-vue',
+  '@southneuhof/wisp-vue-ui',
+  'reka-ui',
+])
+  if (
+    readdirSync(resolve(reactConsumer, 'node_modules')).includes(forbidden) ||
+    (forbidden.startsWith('@southneuhof/') &&
+      readdirSync(resolve(reactConsumer, 'node_modules/@southneuhof')).includes(
+        forbidden.split('/')[1],
+      ))
+  )
+    throw new Error('React consumer unexpectedly installs ' + forbidden)
+console.log('React UI clean-consumer checks passed')

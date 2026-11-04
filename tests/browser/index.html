@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #accbd0, #e0d9c5 45%, #abc9bf);
+        min-height: 100vh;
+      }
+      body::before {
+        content: 'Host application';
+        position: absolute;
+        left: 48px;
+        top: 40px;
+        font: 24px system-ui;
+        color: #315452;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

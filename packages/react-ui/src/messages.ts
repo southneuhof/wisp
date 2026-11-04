@@ -1,0 +1,48 @@
+import type { ChatError } from '@southneuhof/wisp-core'
+export const defaultMessages = {
+  title: 'Wisp',
+  openChat: 'Open chat',
+  signInDescription: 'Sign in to continue to your workspace.',
+  options: 'Chat and workspace options',
+  username: 'Username',
+  password: 'Password',
+  signIn: 'Sign in',
+  signOut: 'Sign out',
+  signingIn: 'Signing in…',
+  loading: 'Connecting…',
+  workspaces: 'Workspace',
+  refreshWorkspaces: 'Refresh workspaces',
+  newWorkspace: 'Create workspace',
+  workspaceName: 'Workspace name',
+  create: 'Create',
+  chooseWorkspace: 'Choose a workspace to start chatting.',
+  noWorkspaces: 'No workspaces yet. Create one to get started.',
+  conversations: 'Conversations',
+  newConversation: 'New conversation',
+  model: 'Model',
+  noModels: 'No chat model is available. Configure a model in CloudflareOS.',
+  empty: 'Start a conversation.',
+  message: 'Message',
+  placeholder: 'Ask a question…',
+  send: 'Send',
+  stop: 'Stop',
+  attach: 'Attach files',
+  remove: 'Remove',
+  download: 'Download',
+  earlier: 'Load earlier messages',
+  openCloudflare: 'Open CloudflareOS',
+  reconnecting: 'Connection lost. Reconnecting…',
+  offline: 'Disconnected. Sign out and sign in to reconnect.',
+  discard:
+    'Discard the unsent draft and selected files? Running agents continue in CloudflareOS.',
+  working: 'Working…',
+  unsupportedAuth:
+    'This instance requires a sign-in method not supported by this integration.',
+  limits:
+    'Up to five files, 4 MiB each and 5 MiB total. PNG, JPEG, and WebP images.',
+  cancelled: 'Cancelled',
+  failed: 'Failed',
+  provisional: 'New workspace',
+}
+export type ChatMessages = typeof defaultMessages
+export type ChatErrorMessages = Partial<Record<ChatError['code'], string>>

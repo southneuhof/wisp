@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { RpcStub } from 'capnweb'
 import type {
   Account,
+  AuthSession,
   Attachment,
   ChatError,
   ChatOptions,
@@ -175,7 +176,6 @@ class Client implements WispChatClient {
   #scope: Scope | undefined
   #workspaceList: Workspace[] = []
   #epoch = 0
-  #authAttempt = 0
   #scopeEpoch = 0
   #disposed = false
   #starting = false
@@ -342,10 +342,9 @@ class Client implements WispChatClient {
     this.#starting = true
     this.#emit()
     try {
-      if (this.#options.sessionPersistence === 'session')
-        try {
-          this.#storage = globalThis.sessionStorage
-        } catch {}
+      try {
+        this.#storage = globalThis.sessionStorage
+      } catch {}
       const config = z
         .object({ passwordAuthEnabled: z.boolean() })
         .parse(await this.#open().getServerConfig())
@@ -420,6 +419,7 @@ class Client implements WispChatClient {
   }
   #clearStorage() {
     try {
+      this.#storage ??= globalThis.sessionStorage
       const account = this.#storage?.getItem(this.#storagePrefix + 'active')
       if (account) this.#storage?.removeItem(this.#storagePrefix + account)
       this.#storage?.removeItem(this.#storagePrefix + 'active')
@@ -450,58 +450,75 @@ class Client implements WispChatClient {
       throw error
     }
   }
-  readonly auth = {
-    signIn: async (input: {
-      username: string
-      password: string
-    }): Promise<void> => {
-      this.#assertOpen()
-      const attempt = ++this.#authAttempt
+  async #signIn(
+    resolveToken: () => Promise<string | null>,
+    expectedAccount?: string,
+  ): Promise<void> {
+    this.#assertOpen()
+    this.auth.signOut()
+    const epoch = this.#epoch
+    this.#signingIn = true
+    this.#error = null
+    this.#emit()
+    try {
       await this.start()
-      if (attempt !== this.#authAttempt || this.#disposed) return
-      this.auth.signOut()
-      const epoch = this.#epoch
-      this.#signingIn = true
-      this.#error = null
-      this.#emit()
-      try {
-        const config = z
-          .object({ passwordAuthEnabled: z.boolean() })
-          .parse(await this.#open().getServerConfig())
-        if (this.#epoch !== epoch || this.#disposed) return
-        this.#passwordEnabled = config.passwordAuthEnabled
-        if (!config.passwordAuthEnabled)
-          throw new ChatClientError('unsupported-auth')
-        const hash = await hashPassword(input.username, input.password)
-        if (this.#epoch !== epoch || this.#disposed) return
-        const token = await this.#open().login(input.username, hash)
-        if (this.#epoch !== epoch || this.#disposed) return
-        if (!token) throw new ChatClientError('credentials')
-        await this.#authenticate(token, epoch)
-        if (this.#epoch !== epoch || this.#disposed) return
-        await this.workspaces.list()
-        this.#save()
-      } catch (error) {
-        if (this.#epoch === epoch && !this.#disposed) {
-          if (this.#account && this.#token) {
-            throw this.#failure(
-              error instanceof ChatClientError ? error.code : 'operation',
-            )
-          }
-          this.#account = null
-          this.#token = null
-          dispose(this.#authenticated)
-          this.#authenticated = undefined
+      if (this.#epoch !== epoch || this.#disposed) return
+      const token = await resolveToken()
+      if (this.#epoch !== epoch || this.#disposed) return
+      if (!token) throw new ChatClientError('credentials')
+      await this.#authenticate(token, epoch, expectedAccount)
+      if (this.#epoch !== epoch || this.#disposed) return
+      await this.workspaces.list()
+      this.#save()
+    } catch (error) {
+      if (this.#epoch === epoch && !this.#disposed) {
+        if (this.#account && this.#token) {
           throw this.#failure(
-            error instanceof ChatClientError ? error.code : 'credentials',
+            error instanceof ChatClientError ? error.code : 'operation',
           )
         }
-      } finally {
-        if (this.#epoch === epoch && !this.#disposed) {
-          this.#signingIn = false
-          this.#emit()
-        }
+        this.#clearStorage()
+        this.#account = null
+        this.#token = null
+        dispose(this.#authenticated)
+        this.#authenticated = undefined
+        throw this.#failure(
+          error instanceof ChatClientError ? error.code : 'credentials',
+        )
       }
+    } finally {
+      if (this.#epoch === epoch && !this.#disposed) {
+        this.#signingIn = false
+        this.#emit()
+      }
+    }
+  }
+  readonly auth = {
+    signIn: (input: { username: string; password: string }): Promise<void> => {
+      return this.#signIn(async () => {
+        if (!this.#passwordEnabled)
+          throw new ChatClientError('unsupported-auth')
+        const epoch = this.#epoch
+        const hash = await hashPassword(input.username, input.password)
+        if (this.#epoch !== epoch || this.#disposed) return ''
+        return this.#open().login(input.username, hash)
+      })
+    },
+    setSession: (session: AuthSession | null): Promise<void> => {
+      if (session === null) {
+        this.auth.signOut()
+        return Promise.resolve()
+      }
+      const parsed = z
+        .object({ token: z.string().min(1), accountId: z.string().min(1) })
+        .safeParse(session)
+      return this.#signIn(
+        async () => {
+          if (!parsed.success) throw new ChatClientError('credentials')
+          return parsed.data.token
+        },
+        parsed.success ? parsed.data.accountId : undefined,
+      )
     },
     signOut: (): void => {
       this.#assertOpen()
@@ -510,7 +527,6 @@ class Client implements WispChatClient {
   }
   #endSession(forgetSession: boolean) {
     this.#epoch++
-    this.#authAttempt++
     if (forgetSession) this.#clearStorage()
     this.#clearScope()
     clearTimeout(this.#timer)

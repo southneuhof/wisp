@@ -23,19 +23,3 @@
     />
   </svg>
 </template>
-<style scoped>
-.wisp-spinner {
-  display: inline-block;
-  animation: wisp-spin 0.8s linear infinite;
-}
-@keyframes wisp-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .wisp-spinner {
-    animation-duration: 2s;
-  }
-}
-</style>

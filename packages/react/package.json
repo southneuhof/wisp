@@ -1,0 +1,61 @@
+{
+  "name": "@southneuhof/wisp-react",
+  "version": "0.3.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "LICENSE",
+    "INTEGRATION.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "prepack": "pnpm run build && node ../../scripts/package-docs.mjs"
+  },
+  "dependencies": {
+    "@southneuhof/wisp-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "author": "Southneuhof contributors",
+  "homepage": "https://github.com/southneuhof/wisp#readme",
+  "bugs": {
+    "url": "https://github.com/southneuhof/wisp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/southneuhof/wisp.git",
+    "directory": "packages/react"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "description": "React bindings for Wisp, a plug-and-play CloudflareOS integration for your app.",
+  "keywords": [
+    "wisp",
+    "cloudflareos",
+    "chat",
+    "react"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

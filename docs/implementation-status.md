@@ -1,6 +1,6 @@
 # Architecture and verification
 
-Wisp is a browser SDK for CloudflareOS with optional Vue bindings and a floating Vue interface. It connects directly to the configured CloudflareOS endpoint using the end user's native account.
+Wisp is a plug-and-play CloudflareOS integration for applications. Its ready-made UI supports Vue and React, with other UI frameworks planned. A framework-independent core supports custom interfaces today. It connects directly to the configured CloudflareOS endpoint using the end user's native account.
 
 ## Package boundaries
 
@@ -8,7 +8,10 @@ Wisp is a browser SDK for CloudflareOS with optional Vue bindings and a floating
 - `@southneuhof/wisp-vue` owns a core client within a Vue setup scope, exposes a read-only state ref, starts on mount, and disposes on scope destruction. It imports no UI, markdown renderer, assistant-ui, or Reka runtime.
 - `@southneuhof/wisp-vue-ui` owns the default floating interface and reusable presentation components. It uses assistant-ui Vue primitives with an external-store adapter and Reka menu primitives. Styling, icons, animations, and the theme system are packaged here. Consumers require no host framework components, CSS build configuration, or React aliases.
 
-Application integrations provide the public endpoint and optional theme/persistence settings. No backend helper, shared service-account credentials, application database, MCP implementation, or business-data authorization layer is included.
+- `@southneuhof/wisp-react` owns a core client with React lifecycle and `useSyncExternalStore`. It survives Strict Mode effect replay and disposes on a real unmount.
+- `@southneuhof/wisp-react-ui` ports the floating interface to assistant-ui React and Base UI menus. Both UI packages compile `shared/chat.css` for the same visual styling. React UI dependencies remain package dependencies for consumer tree shaking; React and React DOM are peers.
+
+Application integrations provide the public endpoint and optional theme settings. No backend helper, shared service-account credentials, application database, MCP implementation, or business-data authorization layer is included.
 
 ## Validation
 
@@ -18,12 +21,12 @@ Core tests use a controlled native RPC boundary and real Cap'n Web subscriber ta
 
 The package verification script checks production builds in a fresh npm consumer, declarations under Bundler and legacy Node resolution, a browser-global-free core import, and forbidden UI dependencies in core/headless consumers. The release script checks archive contents, licenses, repository metadata, and registry-compatible sibling dependencies.
 
-Native endpoint and real-browser checks are separate from this automated suite. Use the example applications against your instance to validate your authentication configuration and native resources before deployment.
+`pnpm test:browser` compares Vue and React layouts on desktop and mobile with controlled fixture data. It also exercises nested menus, opaque menu surfaces, and the sign-in stage in Chromium. Run `pnpm build` first and install Chromium with `pnpm exec playwright install chromium`. These fixtures do not establish a native CloudflareOS round trip. Native endpoint checks are separate from this automated suite. Use the example applications against your instance to validate your authentication configuration and native resources before deployment.
 
 ## Current limits
 
 Initial support targets password-enabled CloudflareOS through its native Cap'n Web `/api` interface. Cloudflare Access cross-origin sign-in and upstream resource-configuration interfaces are outside this package. Configure resources through CloudflareOS.
 
-Memory-only sessions are the default. Optional per-tab persistence stores a native token and selections, never passwords. Sign-out clears local state but does not revoke the upstream account token. Cancelled uploads can leave bytes already accepted upstream, and uncertain mutations are not automatically resent. Separate client instances have independent in-memory state.
+Sessions automatically restore after a refresh through per-tab sessionStorage, which stores a native token and selections, never passwords. Sign-out clears local state but does not revoke the upstream account token. Cancelled uploads can leave bytes already accepted upstream, and uncertain mutations are not automatically resent. Separate client instances have independent in-memory state.
 
 Compatibility storage keys retain their earlier `os-chat:` prefix so the Wisp rename does not discard existing per-tab sessions or saved model selections. Public package names, APIs, CSS classes, and theme variables use Wisp naming.

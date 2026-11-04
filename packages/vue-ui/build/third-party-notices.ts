@@ -25,6 +25,7 @@ export function thirdPartyNotices(): Plugin {
                   .filter((name) =>
                     /^(licen[cs]e|copying|notice)(?:[.-].*)?$/i.test(name),
                   )
+                  .sort()
                   .map(
                     (name) =>
                       `${name}\n${readFileSync(join(directory, name), 'utf8')}`,

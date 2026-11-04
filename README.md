@@ -1,10 +1,18 @@
 # Wisp
 
-Wisp adds a floating chat to Vue apps and connects it to your CloudflareOS instance. It includes sign-in, workspace and conversation pickers, streaming responses, model selection, attachments, and a composer with blur and zoom transitions.
+Wisp is a plug-and-play CloudflareOS integration for your app. Connect your instance and give users access to their agents and conversations without building the chat experience from scratch.
+
+The ready-made UI supports Vue and React. Both use the same visual design and connect through the framework-independent core. More UI frameworks are planned.
+
+The default interface includes sign-in, workspace and conversation pickers, streaming responses, model selection, attachments, and a floating composer.
 
 **Integrating with an agent?** Give it this repository or a package link and tell it to read the [agent integration guide](docs/agent-integration.md). The same guide ships as `INTEGRATION.md` in every npm package.
 
-## Add it to a Vue app
+## Get started
+
+### Vue
+
+Install the ready-made interface:
 
 ```sh
 npm install @southneuhof/wisp-vue-ui vue
@@ -19,7 +27,6 @@ import '@southneuhof/wisp-vue-ui/style.css'
 
 const chat = useWispChat({
   url: 'https://os.example.com', // Your browser-accessible CloudflareOS URL
-  sessionPersistence: 'session', // Optional: restore login after a refresh
 })
 </script>
 
@@ -27,6 +34,25 @@ const chat = useWispChat({
   <WispChat :chat="chat" />
 </template>
 ```
+
+### React
+
+```sh
+npm install @southneuhof/wisp-react-ui react react-dom
+```
+
+```tsx
+'use client'
+import { WispChat, useWispChat } from '@southneuhof/wisp-react-ui'
+import '@southneuhof/wisp-react-ui/style.css'
+
+export function WispHost() {
+  const chat = useWispChat({ url: 'https://os.example.com' })
+  return <WispChat chat={chat} />
+}
+```
+
+Mount the host once in a stable layout. In Next.js, keep it behind a client component boundary. React 18.3 or later is required. See the [React UI guide](packages/react-ui/README.md) for render props and reusable components.
 
 Replace the URL with your instance. Wisp renders its own launcher and floating panel. Users sign in with their CloudflareOS accounts and choose a workspace and model.
 
@@ -36,11 +62,13 @@ Closing the panel keeps its draft and session. Unmounting the host disposes the 
 
 ## Choose a package
 
-| Package                                       | Use it for                                                                 |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| [`@southneuhof/wisp-vue-ui`](packages/vue-ui) | The floating Vue chat or its reusable UI components                        |
-| [`@southneuhof/wisp-vue`](packages/vue)       | A custom Vue interface with reactive state and automatic lifecycle cleanup |
-| [`@southneuhof/wisp-core`](packages/core)     | A custom interface in another framework or vanilla JavaScript              |
+| Package                                           | Use it for                                                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`@southneuhof/wisp-vue-ui`](packages/vue-ui)     | The floating Vue chat or its reusable UI components                          |
+| [`@southneuhof/wisp-vue`](packages/vue)           | A custom Vue interface with reactive state and automatic lifecycle cleanup   |
+| [`@southneuhof/wisp-react-ui`](packages/react-ui) | The floating React chat or its reusable UI components                        |
+| [`@southneuhof/wisp-react`](packages/react)       | A custom React interface with reactive state and automatic lifecycle cleanup |
+| [`@southneuhof/wisp-core`](packages/core)         | A custom interface in another framework or vanilla JavaScript                |
 
 Each package installs its SDK dependencies. The headless packages do not import the UI runtime or stylesheet. All packages ship ESM and TypeScript declarations.
 
@@ -67,17 +95,37 @@ Colors accept CSS values, including variables from your app. The theme also appl
 
 In Vue, call `useWispChat` from `@southneuhof/wisp-vue` inside a setup scope. It returns `client`, a read-only `state` ref, and the endpoint `url`. The composable starts the client on mount and disposes it with the scope.
 
-Outside Vue, import `createWispChat` from `@southneuhof/wisp-core`. Subscribe to snapshots, call `start()`, and call `dispose()` when the integration ends.
+In React, call `useWispChat` from `@southneuhof/wisp-react`. It returns `client`, a read-only snapshot in `state`, and `url`. It starts the client after mounting and disposes it after unmount, including React Strict Mode replay.
+
+For other frameworks, import `createWispChat` from `@southneuhof/wisp-core`. Subscribe to snapshots, call `start()`, and call `dispose()` when the integration ends.
 
 The client groups actions under `auth`, `workspaces`, `models`, `conversations`, and `attachments`. See the [typed API](packages/core/src/types.ts) and [examples](examples) for custom interfaces.
 
 ## Accounts and persistence
 
-The CloudflareOS URL is public configuration. Credentials belong in the sign-in form; passwords are never persisted. Your app's login and CloudflareOS login are separate unless you implement an explicit account integration.
-
-Sessions stay in memory by default. `sessionPersistence: 'session'` stores the native token and validated selections in per-tab `sessionStorage`. Treat the token as a browser credential. Sign-out clears local state and storage; it does not revoke the upstream token or stop remote agents automatically.
+The CloudflareOS URL is public configuration. Credentials belong in the sign-in form; passwords are never persisted. For accounts linked to your app, pass the CloudflareOS session through the handoff below.
 
 Workspace roles and resources determine access. A native `use` role cannot use chat. Models come from the selected workspace, so configure them in CloudflareOS.
+
+## Use your app's linked account
+
+If your backend already issues a CloudflareOS session for the signed-in user, pass it to Wisp:
+
+```ts
+await chat.client.auth.setSession({
+  token: session.token,
+  accountId: session.accountId,
+})
+
+// When the app signs out:
+await chat.client.auth.setSession(null)
+```
+
+Supply a CloudflareOS token and the expected CloudflareOS account ID from your app's authenticated session flow. Wisp validates both with your configured instance before exposing the account or saving the session. An app cookie or unrelated JWT cannot authenticate CloudflareOS.
+
+Call `setSession` when your app receives or replaces a session. It replaces the previous Wisp account and clears its workspace and conversation state. The default UI selects a workspace after authentication. A rejected session leaves Wisp signed out; surface the rejected promise in your app. Clearing the session also cancels any pending sign-in. Tokens stay out of public snapshots; validated sessions use the same per-tab persistence as password sign-in.
+
+In the core package, call `client.auth.setSession(...)` directly. The Vue and React bindings expose the same client. Your backend owns account linking, token issuance, and upstream revocation; Wisp handles the browser connection. Clear Wisp's session as part of app logout, including when the app starts signed out.
 
 ## Compatibility
 
@@ -106,4 +154,4 @@ See [architecture and verification](docs/implementation-status.md) and [publishi
 
 ## License
 
-[MIT](LICENSE). The Vue UI artifact includes license notices for its bundled dependencies.
+[MIT](LICENSE). UI artifacts include license notices for their bundled dependencies.

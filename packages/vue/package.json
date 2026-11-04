@@ -1,6 +1,6 @@
 {
   "name": "@southneuhof/wisp-vue",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "files": [
     "dist",
@@ -44,7 +44,7 @@
   "engines": {
     "node": ">=22.14.0"
   },
-  "description": "Headless Vue bindings for the Wisp CloudflareOS chat SDK.",
+  "description": "Vue bindings for Wisp, a plug-and-play CloudflareOS integration for your app.",
   "keywords": [
     "wisp",
     "cloudflareos",

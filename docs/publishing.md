@@ -2,7 +2,7 @@
 
 Repository: https://github.com/southneuhof/wisp
 
-The root workspace is private. The three public npm packages are `@southneuhof/wisp-core`, `@southneuhof/wisp-vue`, and `@southneuhof/wisp-vue-ui`. They use matching versions; the first prepared public release is `0.2.0`.
+The root workspace is private. The public npm packages are `@southneuhof/wisp-core`, `@southneuhof/wisp-vue`, `@southneuhof/wisp-vue-ui`, `@southneuhof/wisp-react`, and `@southneuhof/wisp-react-ui`. They use matching versions; the first prepared public release is `0.2.0`.
 
 ## One-time setup
 
@@ -22,9 +22,9 @@ pnpm install --frozen-lockfile
 pnpm release:prepare
 ```
 
-This checks formatting and types, runs the tests, builds packages/examples, installs the tarballs into a clean consumer, checks dependency separation, and inspects release contents. `artifacts/` contains the three publishable tarballs. Preparation does not publish anything.
+This checks formatting and types, runs the tests, builds packages/examples, installs the tarballs into a clean consumer, checks dependency separation, and inspects release contents. `artifacts/` contains the five publishable tarballs. Preparation does not publish anything.
 
-The UI artifact includes `dist/THIRD_PARTY_NOTICES.txt` for bundled dependencies. Each package includes the project license and package-specific README. Source directories, credentials, local application configuration, and dependencies are excluded from the archives.
+The bundled Vue UI artifact includes `dist/THIRD_PARTY_NOTICES.txt` for bundled dependencies. Each package includes the project license and package-specific README. Source directories, credentials, local application configuration, and dependencies are excluded from the archives.
 
 ## First publication
 
@@ -35,7 +35,7 @@ git tag v0.2.0
 pnpm release:publish
 ```
 
-The publish command requires a clean worktree and a matching version tag. It publishes the checked tarballs in dependency order: core, Vue bindings, then Vue UI. Complete npm's interactive authentication when prompted. A failed partial release can be rerun: already published packages are skipped only when their registry integrity matches the prepared tarball. A content mismatch requires a new version.
+The publish command requires a clean worktree and a matching version tag. It publishes the checked tarballs in dependency order: core, Vue bindings/UI, then React bindings/UI. Complete npm's interactive authentication when prompted. A failed partial release can be rerun: already published packages are skipped only when their registry integrity matches, or their verified archive file contents match despite tar metadata differences. A content mismatch requires a new version.
 
 After the packages exist, configure npm trusted publishing for each package under its npm Settings:
 

@@ -4,18 +4,22 @@
   "type": "module",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "type-check": "pnpm -r type-check && vue-tsc --noEmit -p tsconfig.examples.json && vue-tsc --noEmit -p tsconfig.tests.json",
+    "type-check": "pnpm -r type-check && vue-tsc --noEmit -p tsconfig.examples.json && vue-tsc --noEmit -p tsconfig.tests.json && tsc --noEmit -p tsconfig.react-tests.json",
     "build": "pnpm -r build",
-    "test": "vitest run",
+    "test": "vitest run && pnpm test:react && pnpm test:release",
     "verify:packages": "node scripts/verify-packages.mjs",
     "dev": "vite examples/vue-ready-made --host 127.0.0.1",
-    "build:examples": "vite build examples/vanilla && vite build examples/vue-custom && vite build examples/vue-ready-made",
-    "format": "prettier --write packages tests examples scripts README.md docs *.json *.ts *.yaml",
-    "lint": "prettier --check packages tests examples scripts README.md docs *.json *.ts *.yaml",
+    "build:examples": "vite build examples/vanilla && vite build examples/vue-custom && vite build examples/vue-ready-made && vite build examples/react-ready-made",
+    "format": "prettier --write shared packages tests examples scripts README.md docs *.json *.ts *.yaml",
+    "lint": "prettier --check shared packages tests examples scripts README.md docs *.json *.ts *.yaml",
     "check": "pnpm lint && pnpm build && pnpm type-check && pnpm test && pnpm build:examples",
     "release:prepare": "pnpm check && pnpm verify:packages && node scripts/release.mjs --check",
     "release:publish": "pnpm release:prepare && node scripts/release.mjs --publish",
-    "release:version": "node scripts/set-version.mjs"
+    "release:version": "node scripts/set-version.mjs",
+    "test:react": "vitest run --config vitest.react.config.ts",
+    "test:browser": "playwright test",
+    "dev:react": "vite examples/react-ready-made --host 127.0.0.1",
+    "test:release": "node --test scripts/archive.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
@@ -31,9 +35,18 @@
     "@southneuhof/wisp-vue": "workspace:*",
     "@southneuhof/wisp-vue-ui": "workspace:*",
     "vue": "^3.5.0",
-    "capnweb": "0.12.0"
+    "capnweb": "0.12.0",
+    "@southneuhof/wisp-react": "workspace:*",
+    "@southneuhof/wisp-react-ui": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@playwright/test": "^1.58.0"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "author": "Southneuhof contributors",
   "homepage": "https://github.com/southneuhof/wisp#readme",
@@ -47,5 +60,5 @@
   "engines": {
     "node": ">=22.14.0"
   },
-  "description": "Wisp: a browser SDK and self-contained Vue chat interface for CloudflareOS."
+  "description": "Wisp: plug-and-play CloudflareOS integration for your app."
 }

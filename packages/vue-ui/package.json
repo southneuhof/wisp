@@ -1,6 +1,6 @@
 {
   "name": "@southneuhof/wisp-vue-ui",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "files": [
     "dist",
@@ -55,7 +55,7 @@
   "engines": {
     "node": ">=22.14.0"
   },
-  "description": "Self-contained floating Vue chat for CloudflareOS, built with assistant-ui and Reka UI.",
+  "description": "Ready-made Vue UI for Wisp, a plug-and-play CloudflareOS integration for your app.",
   "keywords": [
     "wisp",
     "cloudflareos",

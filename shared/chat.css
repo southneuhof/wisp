@@ -1,0 +1,461 @@
+.wisp-launcher-enter-active,
+.wisp-launcher-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.wisp-launcher-enter-from,
+.wisp-launcher-leave-to {
+  opacity: 0;
+}
+
+.wisp-floating {
+  visibility: hidden;
+  transition: visibility 0s linear 280ms;
+}
+
+.wisp-floating-open {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.wisp-foreground-enter-active,
+.wisp-foreground-leave-active {
+  transform-origin: center bottom;
+  will-change: opacity, filter, scale;
+  transition:
+    opacity 280ms ease,
+    filter 280ms ease,
+    scale 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.wisp-foreground-enter-from {
+  opacity: 0;
+  filter: blur(16px);
+  scale: 1.08;
+}
+
+.wisp-foreground-leave-to {
+  opacity: 0;
+  filter: blur(16px);
+  scale: 1.02;
+}
+
+.wisp-foreground-enter-to,
+.wisp-foreground-leave-from {
+  opacity: 1;
+  filter: blur(0);
+  scale: 1;
+}
+
+.wisp-backdrop {
+  --blur-outset-x: 88px;
+  position: absolute;
+  inset: -96px -88px -64px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+  transition:
+    opacity 280ms ease,
+    -webkit-backdrop-filter 280ms ease,
+    backdrop-filter 280ms ease;
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    var(--wisp-backdrop-vertical-mask);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    var(--wisp-backdrop-vertical-mask);
+  mask-composite: intersect;
+}
+
+.wisp-backdrop-extra {
+  --blur-outset-x: 88px;
+  position: absolute;
+  inset: -96px -88px -64px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+  transition:
+    opacity 280ms ease,
+    -webkit-backdrop-filter 280ms ease,
+    backdrop-filter 280ms ease;
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    var(--wisp-backdrop-vertical-mask);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    var(--wisp-backdrop-vertical-mask);
+  mask-composite: intersect;
+}
+
+.wisp-message-blur {
+  --blur-outset-x: 64px;
+  position: absolute;
+  inset: -32px -64px -64px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+  transition:
+    opacity 280ms ease,
+    -webkit-backdrop-filter 280ms ease,
+    backdrop-filter 280ms ease;
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgb(0 0 0 / 0.25) 1%,
+      rgb(0 0 0 / 0.75) 3%,
+      black 5%,
+      rgb(0 0 0 / 0.92) 9%,
+      rgb(0 0 0 / 0.6) 12%,
+      rgb(0 0 0 / 0.25) 14%,
+      transparent 16%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      black var(--blur-outset-x),
+      black calc(100% - var(--blur-outset-x)),
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgb(0 0 0 / 0.25) 1%,
+      rgb(0 0 0 / 0.75) 3%,
+      black 5%,
+      rgb(0 0 0 / 0.92) 9%,
+      rgb(0 0 0 / 0.6) 12%,
+      rgb(0 0 0 / 0.25) 14%,
+      transparent 16%
+    );
+  mask-composite: intersect;
+}
+
+.wisp-history {
+  --wisp-backdrop-vertical-mask: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 0.04) 20px,
+    rgb(0 0 0 / 0.16) 40px,
+    rgb(0 0 0 / 0.32) 60px,
+    rgb(0 0 0 / 0.5) 80px,
+    rgb(0 0 0 / 0.68) 100px,
+    rgb(0 0 0 / 0.84) 120px,
+    rgb(0 0 0 / 0.96) 140px,
+    black 160px,
+    black max(160px, calc(100% - 64px)),
+    transparent 100%
+  );
+  --wisp-history-max-height: min(70dvh, calc(100dvh - 180px));
+  max-height: var(--wisp-history-max-height);
+}
+
+.wisp-history .wisp-thread-fade {
+  max-height: calc(var(--wisp-history-max-height) - 44px);
+}
+
+.wisp-floating-open .wisp-backdrop {
+  opacity: 1;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+.wisp-floating-open .wisp-backdrop-extra {
+  opacity: 1;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.wisp-message-blur.wisp-blur-visible {
+  opacity: 1;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.wisp-thread-fade {
+  --thread-fade: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 0.04) 14px,
+    rgb(0 0 0 / 0.16) 28px,
+    rgb(0 0 0 / 0.5) 55px,
+    rgb(0 0 0 / 0.84) 76px,
+    black 96px
+  );
+  -webkit-mask-image: var(--thread-fade);
+  mask-image: var(--thread-fade);
+  -webkit-mask-size: 100% calc(100% + 96px);
+  mask-size: 100% calc(100% + 96px);
+  -webkit-mask-position: 0 -96px;
+  mask-position: 0 -96px;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  transition:
+    -webkit-mask-position 280ms ease,
+    mask-position 280ms ease;
+}
+
+.wisp-thread-fade.wisp-thread-scrolled {
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wisp-floating:not(.wisp-floating-open) {
+    transition-delay: 1ms;
+  }
+
+  .wisp-launcher-enter-active,
+  .wisp-launcher-leave-active,
+  .wisp-backdrop,
+  .wisp-backdrop-extra,
+  .wisp-message-blur,
+  .wisp-thread-fade,
+  .wisp-foreground-enter-active,
+  .wisp-foreground-leave-active {
+    transition-duration: 1ms;
+  }
+}
+
+.wisp-menu-content {
+  background-color: var(--wisp-menu-bg);
+  transform-origin: var(
+    --reka-dropdown-menu-content-transform-origin,
+    var(--transform-origin)
+  );
+  animation: wisp-menu-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wisp-menu-content[data-state='closed'],
+.wisp-menu-content[data-ending-style] {
+  animation: wisp-menu-out 110ms ease-in forwards;
+}
+
+.wisp-menu-item[data-highlighted],
+.wisp-menu-item[data-state='open'],
+.wisp-menu-item[data-popup-open] {
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.wisp-menu-item {
+  user-select: none;
+}
+
+.wisp-menu-item[data-disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.wisp-menu-item-primary,
+.wisp-menu-action {
+  cursor: pointer;
+}
+
+.wisp-menu-item-primary,
+.wisp-menu-item-primary[data-highlighted] {
+  background-color: var(--wisp-accent) !important;
+  color: var(--wisp-primary-fg) !important;
+}
+
+.wisp-menu-item-primary[data-highlighted] {
+  filter: brightness(0.94);
+}
+
+@keyframes wisp-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wisp-menu-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wisp-menu-content {
+    animation-duration: 1ms;
+  }
+}
+
+.wisp-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wisp-muted);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+.wisp-icon-button:hover,
+.wisp-icon-button[data-highlighted] {
+  color: var(--wisp-fg);
+  background: color-mix(in srgb, var(--wisp-fg) 8%, transparent);
+}
+.wisp-icon-button:focus-visible {
+  outline: 2px solid var(--wisp-accent);
+  outline-offset: 2px;
+}
+.wisp-icon-button-danger {
+  width: 28px;
+  height: 28px;
+  color: var(--wisp-danger);
+}
+.wisp-icon-button-danger:hover,
+.wisp-icon-button-danger[data-highlighted] {
+  color: var(--wisp-danger);
+  background: color-mix(in srgb, var(--wisp-danger) 12%, transparent);
+}
+
+.wisp-spinner {
+  display: inline-block;
+  animation: wisp-spin 0.8s linear infinite;
+}
+@keyframes wisp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wisp-spinner {
+    animation-duration: 2s;
+  }
+}
+
+.wisp-markdown p {
+  margin-block: 0.35rem;
+}
+.wisp-markdown p:first-child {
+  margin-top: 0;
+}
+.wisp-markdown p:last-child {
+  margin-bottom: 0;
+}
+.wisp-markdown {
+  overflow-wrap: anywhere;
+}
+.wisp-markdown .wisp-markdown-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.wisp-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin-block: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem;
+  background: color-mix(in srgb, var(--wisp-menu-bg) 60%, transparent);
+  white-space: pre;
+}
+.wisp-markdown code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--wisp-menu-bg) 50%, transparent);
+  padding-inline: 0.2em;
+}
+.wisp-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+.wisp-markdown table {
+  width: max-content;
+  border-collapse: collapse;
+}
+.wisp-markdown th,
+.wisp-markdown td {
+  white-space: nowrap;
+}
+.wisp-markdown ul {
+  list-style: disc;
+  padding-inline-start: 1.25rem;
+}
+.wisp-markdown ol {
+  list-style: decimal;
+  padding-inline-start: 1.25rem;
+}
+.wisp-markdown a {
+  color: var(--wisp-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wisp-attachment {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wisp-attachment img {
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 8px;
+}
+.wisp-attachment button {
+  border: 1px solid var(--wisp-border, #dbe1eb);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--wisp-menu-bg, #f1f4f6);
+  color: var(--wisp-fg, #172033);
+  font: inherit;
+}
