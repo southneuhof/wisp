@@ -140,6 +140,7 @@ let downloadUrlTimer: ReturnType<typeof setTimeout> | undefined
 const downloadAttachmentUrls = new Set<string>()
 const draftFiles = new Map<string, File>()
 let autoSelectingWorkspace = false
+let attemptedWorkspace: { accountId: string; workspaceId: string } | undefined
 
 const pastConversations = computed<readonly Conversation[]>(
   () => workspace.value?.conversations ?? [],
@@ -304,18 +305,38 @@ watch(
   { flush: 'post' },
 )
 watch(
-  [account, workspaces, workspaceState, busyAction],
-  async ([currentAccount, availableWorkspaces, currentWorkspace]) => {
+  [
+    account,
+    workspaces,
+    workspaceState,
+    busyAction,
+    () => snapshot.value.connection,
+  ],
+  async ([
+    currentAccount,
+    availableWorkspaces,
+    currentWorkspace,
+    busy,
+    connection,
+  ]) => {
+    if (!currentAccount || connection !== 'connected') {
+      attemptedWorkspace = undefined
+      return
+    }
+    const firstWorkspace = availableWorkspaces[0]
     if (
-      !currentAccount ||
-      busyAction.value ||
+      busy ||
       autoSelectingWorkspace ||
       currentWorkspace?.status !== 'none' ||
-      availableWorkspaces.length === 0
+      !firstWorkspace ||
+      (attemptedWorkspace?.accountId === currentAccount.id &&
+        attemptedWorkspace.workspaceId === firstWorkspace.id)
     )
       return
-    const firstWorkspace = availableWorkspaces[0]
-    if (!firstWorkspace) return
+    attemptedWorkspace = {
+      accountId: currentAccount.id,
+      workspaceId: firstWorkspace.id,
+    }
     autoSelectingWorkspace = true
     busyAction.value = true
     try {

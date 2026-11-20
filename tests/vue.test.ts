@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, readonly, shallowRef } from 'vue'
 import { createWispChat } from '@southneuhof/wisp-core'
 import type { ChatSnapshot } from '@southneuhof/wisp-core'
@@ -105,6 +105,40 @@ describe('Vue presentation and lifecycle', () => {
     ).toHaveProperty('disabled')
     wrapper.unmount()
     f.client.dispose()
+  })
+  it('waits for recovery and tries an unavailable default workspace only once per connection', async () => {
+    const f = binding()
+    const select = vi
+      .spyOn(f.client.workspaces, 'select')
+      .mockImplementation(() => new Promise(() => {}))
+      .mockRejectedValueOnce(new Error('Workspace unavailable'))
+    const wrapper = mount(WispChat, { props: { chat: f.chat } })
+    const session = {
+      status: 'authenticated',
+      connection: 'recovering',
+      error: null,
+      account: { id: 'alice', name: 'Alice' },
+      workspaces: [{ id: 'a', title: 'A', role: 'build' }],
+      workspace: { status: 'none' },
+    } satisfies ChatSnapshot
+    try {
+      f.state.value = session
+      await flushPromises()
+      expect(select).not.toHaveBeenCalled()
+
+      f.state.value = { ...session, connection: 'connected' }
+      await flushPromises()
+      expect(select).toHaveBeenCalledExactlyOnceWith('a')
+
+      f.state.value = session
+      await flushPromises()
+      f.state.value = { ...session, connection: 'connected' }
+      await flushPromises()
+      expect(select).toHaveBeenCalledTimes(2)
+    } finally {
+      wrapper.unmount()
+      f.client.dispose()
+    }
   })
   it('starts exactly one owned client and disposes it with its Vue scope', () => {
     let start: MockInstance<() => Promise<void>> | undefined
