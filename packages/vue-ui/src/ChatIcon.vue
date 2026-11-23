@@ -8,7 +8,10 @@ const paths: Record<string, string> = {
   chevron_right: 'm9 5 7 7-7 7',
   close: 'm6 6 12 12M6 18 18 6',
   cloud: 'M7 18a5 5 0 1 1 1-10 6 6 0 0 1 11 2 4 4 0 0 1-1 8H7Z',
+  error: 'M22 12a10 10 0 1 0-20 0 10 10 0 0 0 20 0ZM12 8v4m0 4h.01',
   expand_more: 'm6 9 6 6 6-6',
+  lightbulb:
+    'M9 18h6M10 22h4M9 15c0-1.5-.8-2.3-1.6-3.1a6 6 0 1 1 9.2 0c-.8.8-1.6 1.6-1.6 3.1',
   logout: 'M10 4H4v16h6m4-13 5 5-5 5M8 12h11',
   more_vert: 'M12 4h.01M12 12h.01M12 20h.01',
   send: 'm3 3 19 9-19 9 4-9-4-9Zm4 9h15',

@@ -22,6 +22,7 @@ import {
 } from './internal/protocol.js'
 import type {
   Event,
+  History,
   NativeAccount,
   NativeChat,
   NativeMessage,
@@ -34,12 +35,16 @@ import {
   openPublic,
   rpcUrl,
   subscribeTarget,
+  subscribeActionsTarget,
 } from './internal/transport.js'
 import {
   FileValidationError,
   uploadFiles,
   validateDraft,
 } from './internal/files.js'
+
+import { ActivityTracker, record } from './internal/activity.js'
+import { DraftTracker } from './internal/draft.js'
 
 const errorMessages: Record<ChatError['code'], string> = {
   connection:
@@ -58,8 +63,11 @@ const errorMessages: Record<ChatError['code'], string> = {
   operation: 'CloudflareOS could not complete the operation. Try again.',
 }
 export class ChatClientError extends Error {
-  constructor(readonly code: ChatError['code']) {
-    super(errorMessages[code])
+  constructor(
+    readonly code: ChatError['code'],
+    message = errorMessages[code],
+  ) {
+    super(message)
     this.name = 'ChatClientError'
   }
 }
@@ -68,6 +76,7 @@ interface Turn {
   chatId: number | null
   user: Message
   stream: string
+  streamAfterSequence: number
   startSequence: number
   settled: boolean
   active: boolean
@@ -88,9 +97,16 @@ interface Scope {
   models: Model[]
   modelId: string | null
   chats: Conversation[]
+  chatMetadata: Map<number, NativeChat>
   selected: number | null
   view: number
   durable: Map<number, Message>
+  rows: Map<number, NativeMessage>
+  checkpoint: History['compacted']
+  activity: ActivityTracker
+  draft: DraftTracker | undefined
+  commands: Set<string>
+  retriedErrors: Map<number, number>
   local: Message[]
   turns: Map<number, Turn>
   pending: Turn | null
@@ -101,6 +117,8 @@ interface Scope {
   loadingHistory: boolean
   subscription: RpcStub<object> | undefined
   subscriber: ReturnType<typeof subscribeTarget> | undefined
+  actionsSubscription: RpcStub<object> | undefined
+  actionsSubscriber: ReturnType<typeof subscribeActionsTarget> | undefined
 }
 const persistedSchema = z.object({
   token: z.string(),
@@ -230,6 +248,7 @@ class Client implements WispChatClient {
       if (s?.phase === 'ready') {
         const turn = s.selected === null ? s.pending : s.turns.get(s.selected)
         const messages = [...s.durable.values(), ...s.local]
+        const retryable = this.#retryableError(s)?.sequence
         if (turn?.stream)
           messages.push({
             id: `stream:${turn.id}`,
@@ -251,6 +270,14 @@ class Client implements WispChatClient {
                   status: s.loadingHistory ? 'loading' : 'conversation',
                   id: s.selected,
                   messages,
+                  activity: s.activity
+                    .getSnapshot()
+                    .map((item) =>
+                      item.kind === 'error' && item.sequence === retryable
+                        ? { ...item, retryable: true }
+                        : item,
+                    ),
+                  draftChanges: s.draft?.getSnapshot(),
                 },
           running: !!turn && !turn.finalized,
           uploading: !!turn && !turn.settled && !turn.chatId,
@@ -282,10 +309,13 @@ class Client implements WispChatClient {
     this.#snapshot = frozen(next)
     for (const listener of this.#listeners) listener(this.#snapshot)
   }
-  #failure(code: ChatError['code']): ChatClientError {
-    this.#error = { code, message: errorMessages[code] }
+  #failure(
+    code: ChatError['code'],
+    message = errorMessages[code],
+  ): ChatClientError {
+    this.#error = { code, message }
     this.#emit()
-    return new ChatClientError(code)
+    return new ChatClientError(code, message)
   }
   #current(scope: Scope): boolean {
     return (
@@ -553,6 +583,9 @@ class Client implements WispChatClient {
     if (!s) return
     s.pending?.controller.abort()
     for (const t of s.turns.values()) t.controller.abort()
+    s.draft?.dispose()
+    dispose(s.actionsSubscription)
+    dispose(s.actionsSubscriber)
     dispose(s.subscription)
     dispose(s.subscriber)
     dispose(s.rpc)
@@ -682,9 +715,16 @@ class Client implements WispChatClient {
       models: [],
       modelId: null,
       chats: [],
+      chatMetadata: new Map(),
       selected: null,
       view: 0,
       durable: new Map(),
+      rows: new Map(),
+      checkpoint: undefined,
+      activity: new ActivityTracker(),
+      draft: undefined,
+      commands: new Set(),
+      retriedErrors: new Map(),
       local: [],
       turns: new Map(),
       pending: null,
@@ -695,6 +735,8 @@ class Client implements WispChatClient {
       loadingHistory: false,
       subscription: undefined,
       subscriber: undefined,
+      actionsSubscription: undefined,
+      actionsSubscriber: undefined,
     }
     this.#scope = s
     this.#emit()
@@ -714,17 +756,32 @@ class Client implements WispChatClient {
       ])
       if (!this.#current(s)) return
       s.models = z.array(profileSchema).parse(models)
-      s.chats = z.array(chatSchema).parse(chats).map(nativeConversation)
+      const chatMetadata = z.array(chatSchema).parse(chats)
+      s.chatMetadata = new Map(chatMetadata.map((chat) => [chat.id, chat]))
+      s.chats = chatMetadata.map(nativeConversation)
       s.modelId =
         s.models.find((m) => m.id === this.#options.modelId)?.id ??
         s.models[0]?.id ??
         null
-      s.subscriber = subscribeTarget((event) => {
+      const receive = (event: Event) => {
         if (!this.#current(s)) return
         if (s.buffering) s.events.push(event)
         else this.#event(s, event)
-      })
-      const subscription = await rpc.subscribeToChat(s.subscriber)
+      }
+      s.subscriber = subscribeTarget(receive)
+      const subscribing = rpc.subscribeToChat(s.subscriber)
+      if (typeof rpc.subscribeToActions === 'function') {
+        const subscriber = subscribeActionsTarget(receive)
+        s.actionsSubscriber = subscriber
+        void rpc.subscribeToActions(subscriber).then(
+          (subscription) => {
+            if (this.#current(s)) s.actionsSubscription = subscription
+            else dispose(subscription)
+          },
+          () => dispose(subscriber),
+        )
+      }
+      const subscription = await subscribing
       if (!this.#current(s)) {
         dispose(subscription)
         return
@@ -754,19 +811,65 @@ class Client implements WispChatClient {
       this.#emit()
     },
   }
-  #replaceHistory(s: Scope, rows: NativeMessage[], merge = false) {
-    if (!merge) s.durable.clear()
-    for (const row of rows) {
-      const message = toMessage(
-        row,
-        s.workspace.id,
-        this.#account?.id ?? '',
-        this.#options.url,
-      )
-      if (message && row.chatId === s.selected)
-        s.durable.set(row.sequence, message)
+  #resetView(s: Scope, id: number | null) {
+    s.selected = id
+    s.durable.clear()
+    s.rows.clear()
+    s.checkpoint = undefined
+    s.activity = new ActivityTracker()
+    s.draft?.dispose()
+    s.draft = undefined
+    if (id === null) return
+    const tracker = new DraftTracker({
+      readFilesAtCommit: (commit, paths) =>
+        s.rpc.readFilesAtCommit(commit, [...paths]),
+      listChangedPaths: async (base, head) =>
+        z.array(z.string()).parse(await s.rpc.listChangedPaths(base, head)),
+      onChange: () => {
+        if (this.#current(s) && s.draft === tracker) this.#emit()
+      },
+    })
+    s.draft = tracker
+    const metadata = s.chatMetadata.get(id)
+    if (metadata) tracker.metadata(metadata)
+  }
+  #applyRow(s: Scope, row: NativeMessage, running: boolean, live = false) {
+    s.rows.set(row.sequence, row)
+    s.activity.message(row, live)
+    const message = toMessage(
+      row,
+      s.workspace.id,
+      this.#account?.id ?? '',
+      this.#options.url,
+      running,
+    )
+    if (message) s.durable.set(row.sequence, message)
+    else s.durable.delete(row.sequence)
+  }
+  #updateDraftHistory(s: Scope) {
+    s.draft?.history(
+      [...s.rows.values()].sort((a, b) => a.sequence - b.sequence),
+      s.checkpoint,
+    )
+  }
+  #replaceHistory(
+    s: Scope,
+    page: History,
+    mode: 'select' | 'earlier' | 'refresh',
+  ) {
+    if (mode === 'earlier' || mode === 'select' || !s.loadingEarlier)
+      s.checkpoint =
+        mode === 'refresh' &&
+        s.checkpoint &&
+        page.compacted &&
+        s.checkpoint.to < page.compacted.to
+          ? s.checkpoint
+          : page.compacted
+    for (const row of page.messages) {
+      if (row.chatId === s.selected) this.#applyRow(s, row, false)
     }
     s.durable = new Map([...s.durable].sort((a, b) => a[0] - b[0]))
+    this.#updateDraftHistory(s)
     this.#reconcileLocal(s)
   }
   #reconcileLocal(s: Scope) {
@@ -777,13 +880,13 @@ class Client implements WispChatClient {
     )
     if (rows.some((m) => m.role === 'user'))
       s.local = s.local.filter((m) => m.id !== turn.user.id)
-    if (rows.some((m) => m.role === 'assistant')) turn.stream = ''
   }
   readonly conversations = {
     list: async (): Promise<readonly Conversation[]> => {
       const s = this.#ready()
       const chats = z.array(chatSchema).parse(await s.rpc.listChats())
       if (!this.#current(s)) return []
+      for (const chat of chats) s.chatMetadata.set(chat.id, chat)
       s.chats = chats.map(nativeConversation)
       this.#emit()
       return this.#snapshot.status === 'authenticated' &&
@@ -795,9 +898,8 @@ class Client implements WispChatClient {
       const s = this.#ready()
       if (!s.chats.some((c) => c.id === id)) throw this.#failure('workspace')
       const view = ++s.view
-      s.selected = id
-      s.durable.clear()
       s.local = []
+      this.#resetView(s, id)
       s.hasEarlier = false
       s.loadingEarlier = false
       s.loadingHistory = true
@@ -807,7 +909,7 @@ class Client implements WispChatClient {
       try {
         const page = historySchema.parse(await s.rpc.getChatHistory(id))
         if (!this.#current(s) || view !== s.view) return
-        this.#replaceHistory(s, page.messages)
+        this.#replaceHistory(s, page, 'select')
         s.hasEarlier = !!page.compacted
         const meta = s.chats.find((c) => c.id === id)
         if (meta?.running && !s.turns.has(id))
@@ -829,7 +931,7 @@ class Client implements WispChatClient {
         if (this.#current(s) && view === s.view) {
           s.buffering = false
           s.loadingHistory = false
-          for (const event of s.events.splice(0)) this.#event(s, event)
+          for (const event of s.events.splice(0)) this.#event(s, event, true)
           this.#emit()
         }
       }
@@ -837,9 +939,8 @@ class Client implements WispChatClient {
     startNew: () => {
       const s = this.#ready()
       s.view++
-      s.selected = null
-      s.durable.clear()
       s.local = []
+      this.#resetView(s, null)
       s.hasEarlier = false
       s.loadingEarlier = false
       s.loadingHistory = false
@@ -898,7 +999,7 @@ class Client implements WispChatClient {
           s.pending = null
           s.turns.set(id, turn)
           if (s.view === turn.view && s.selected === null) {
-            s.selected = id
+            this.#resetView(s, id)
             this.#save()
           }
           const queued = s.events.splice(0)
@@ -962,14 +1063,14 @@ class Client implements WispChatClient {
       if (s.selected === null || !s.hasEarlier || s.loadingEarlier) return
       const id = s.selected,
         view = s.view
-      const before = Math.min(...s.durable.keys())
+      const before = s.checkpoint?.to ?? Math.min(...s.rows.keys())
       if (!Number.isFinite(before)) return
       s.loadingEarlier = true
       this.#emit()
       try {
         const page = historySchema.parse(await s.rpc.getChatHistory(id, before))
         if (!this.#current(s) || view !== s.view) return
-        this.#replaceHistory(s, page.messages, true)
+        this.#replaceHistory(s, page, 'earlier')
         s.hasEarlier = !!page.compacted
       } catch {
         if (this.#current(s) && view === s.view)
@@ -981,6 +1082,149 @@ class Client implements WispChatClient {
         }
       }
     },
+  }
+  async #activityCommand(
+    s: Scope,
+    id: number,
+    command: string,
+    action: () => Promise<void>,
+  ) {
+    const key = `${id}:${command}`
+    if (s.commands.has(key)) return
+    const view = s.view
+    s.commands.add(key)
+    this.#error = null
+    try {
+      await action()
+    } catch (error) {
+      if (!this.#current(s) || s.view !== view) return
+      if (error instanceof ChatClientError)
+        throw this.#failure(error.code, error.message)
+      throw this.#failure('operation')
+    } finally {
+      s.commands.delete(key)
+      if (this.#current(s) && s.view === view) this.#emit()
+    }
+  }
+  readonly activity = {
+    decide: async (activityId: string, decision: 'approve' | 'reject') => {
+      const s = this.#ready()
+      const id = s.selected
+      const item = s.activity.request(activityId)
+      if (id === null || item?.state !== 'pending') return
+      const { request } = item
+      const approve = decision === 'approve'
+      const view = s.view
+      await this.#activityCommand(s, id, activityId, async () => {
+        if (
+          approve &&
+          (request.kind === 'connection' ||
+            (request.kind === 'action' && request.requiresSetup))
+        )
+          throw new ChatClientError(
+            'operation',
+            'Complete setup in CloudflareOS to approve this request.',
+          )
+        switch (request.kind) {
+          case 'action':
+            if (approve) await s.rpc.approveAction(request.id)
+            else await s.rpc.rejectAction(request.id)
+            break
+          case 'connection':
+            await s.rpc.denyConnectionRequest(request.id)
+            break
+          case 'web':
+            if (approve) await s.rpc.approveWebFetchRequest(request.id)
+            else await s.rpc.denyWebFetchRequest(request.id)
+            break
+        }
+        if (this.#current(s) && s.view === view)
+          s.activity.decided(activityId, approve ? 'approved' : 'rejected')
+      })
+    },
+    reviewChanges: async (decision: 'accept' | 'discard') => {
+      const s = this.#ready()
+      const id = s.selected
+      const draft = s.draft?.getSnapshot()
+      if (
+        id === null ||
+        !draft?.pending ||
+        (decision === 'accept' && !draft.ready) ||
+        s.turns.has(id) ||
+        s.chatMetadata.get(id)?.activeAgent !== undefined
+      )
+        return
+      const view = s.view
+      await this.#activityCommand(s, id, 'review', async () => {
+        if (decision === 'discard') await s.rpc.revertChanges(id, 0)
+        else {
+          const result = record(await s.rpc.mergeChanges(id))
+          if (result?.outcome === 'stale')
+            throw new ChatClientError(
+              'operation',
+              'Mainline changed. Update the draft in CloudflareOS before accepting it.',
+            )
+          if (result?.outcome !== 'merged')
+            throw new ChatClientError('operation')
+        }
+        const [page, chats] = await Promise.allSettled([
+          s.rpc.getChatHistory(id),
+          s.rpc.listChats(),
+        ])
+        if (!this.#current(s) || s.view !== view) return
+        if (page.status === 'fulfilled') {
+          const result = historySchema.safeParse(page.value)
+          if (result.success) this.#replaceHistory(s, result.data, 'refresh')
+        }
+        if (chats.status === 'fulfilled') {
+          const result = z.array(chatSchema).safeParse(chats.value)
+          const metadata = result.success
+            ? result.data.find((chat) => chat.id === id)
+            : undefined
+          if (metadata) {
+            s.chatMetadata.set(id, metadata)
+            s.draft?.metadata(metadata)
+          }
+        }
+      })
+    },
+    retry: async () => {
+      const s = this.#ready()
+      const id = s.selected
+      const model = s.modelId
+      const error = this.#retryableError(s)
+      if (id === null || !model || !error) return
+      await this.#activityCommand(s, id, 'retry', async () => {
+        await s.rpc.retryAgent(id, model)
+        s.retriedErrors.set(id, error.sequence)
+      })
+    },
+  }
+  #retryableError(s: Scope): NativeMessage | undefined {
+    const id = s.selected
+    if (
+      id === null ||
+      !s.modelId ||
+      s.loadingHistory ||
+      s.turns.has(id) ||
+      this.#connection !== 'connected' ||
+      s.chatMetadata.get(id)?.activeAgent !== undefined
+    )
+      return
+    const last = [...s.rows.values()]
+      .sort((a, b) => b.sequence - a.sequence)
+      .find(
+        (row) =>
+          row.type === 'error' ||
+          row.type === 'message' ||
+          row.type === 'agentNudge',
+      )
+    if (
+      last?.type === 'error' &&
+      last.code !== 'stopped' &&
+      s.retriedErrors.get(id) !== last.sequence
+    )
+      return last
   }
   async #stopTurn(s: Scope, turn: Turn) {
     if (
@@ -1015,6 +1259,7 @@ class Client implements WispChatClient {
       chatId,
       user,
       stream: '',
+      streamAfterSequence: -1,
       startSequence: Math.max(-1, ...s.durable.keys()),
       settled: true,
       active: true,
@@ -1028,16 +1273,30 @@ class Client implements WispChatClient {
       view: s.view,
     }
   }
-  #event(s: Scope, event: Event) {
+  #event(s: Scope, event: Event, replay = false) {
     if (!this.#current(s)) return
     if (s.pending && event.type !== 'generation') {
       s.events.push(event)
       return
     }
     if (event.type === 'generation') {
+      s.activity.reset()
+      s.draft?.resetPreviews()
       for (const turn of s.turns.values()) turn.stream = ''
       if (s.pending) s.pending.stream = ''
       this.#emit()
+      return
+    }
+    if (event.type === 'action') {
+      const id = record(event.action)?.id
+      if (
+        s.selected !== null &&
+        (event.chatId === s.selected ||
+          (event.chatId === undefined && s.activity.request(`action:${id}`)))
+      ) {
+        s.activity.actionLog(event.action)
+        this.#emit()
+      }
       return
     }
     const id =
@@ -1050,17 +1309,26 @@ class Client implements WispChatClient {
     if (event.type === 'deleted') {
       s.chats = s.chats.filter((c) => c.id !== id)
       s.turns.delete(id)
+      s.retriedErrors.delete(id)
+      s.chatMetadata.delete(id)
       if (s.selected === id) {
-        s.selected = null
         s.view++
-        s.durable.clear()
         s.local = []
+        this.#resetView(s, null)
       }
     }
     if (event.type === 'metadata') {
+      s.chatMetadata.set(id, event.chat)
       const meta = nativeConversation(event.chat)
+      if (s.selected === id) {
+        s.draft?.metadata(event.chat)
+        if (!meta.running) {
+          s.activity.reset(false)
+          s.draft?.resetPreviews()
+        }
+      }
       s.chats = [meta, ...s.chats.filter((c) => c.id !== id)]
-      if (turn) {
+      if (turn && !turn.finalized) {
         if (meta.running) {
           turn.active = true
           turn.idle = false
@@ -1081,21 +1349,46 @@ class Client implements WispChatClient {
         )
     }
     if (event.type === 'message' && s.selected === id) {
-      const msg = toMessage(
-        event.message,
-        s.workspace.id,
-        this.#account?.id ?? '',
-        this.#options.url,
-        !!turn && !turn.idle,
-      )
-      if (msg) s.durable.set(event.message.sequence, msg)
+      const row = event.message
+      const live = replay || !s.rows.has(row.sequence)
+      this.#applyRow(s, row, !!turn && !turn.idle, live)
       s.durable = new Map([...s.durable].sort((a, b) => a[0] - b[0]))
+      if (['changes', 'merge', 'revert'].includes(row.type))
+        this.#updateDraftHistory(s)
+      if (
+        live &&
+        turn &&
+        (row.type === 'error' ||
+          (row.author?.type === 'agent' && row.type === 'message'))
+      )
+        turn.stream = ''
+      if (live && (row.type === 'changes' || row.type === 'error'))
+        s.draft?.resetPreviews()
       this.#reconcileLocal(s)
     }
-    if (event.type === 'stream' && turn) {
-      if (event.event.type === 'textDelta')
+    if (event.type === 'change' && s.selected === id)
+      s.draft?.changeApplied(
+        event.generation,
+        event.revision,
+        event.change,
+        record(event.author)?.type === 'agent',
+      )
+    if (event.type === 'stream') {
+      if (s.selected === id) {
+        s.activity.stream(event.event)
+        s.draft?.stream(event.event)
+      }
+      if (turn && event.event.type === 'textDelta') {
+        if (!turn.stream)
+          turn.streamAfterSequence = Math.max(
+            turn.startSequence,
+            ...[...s.rows.values()]
+              .filter((row) => row.author?.type === 'agent')
+              .map((row) => row.sequence),
+          )
         turn.stream += event.event.delta ?? ''
-      if (event.event.type === 'streamReset') turn.stream = ''
+      }
+      if (turn && event.event.type === 'streamReset') turn.stream = ''
     }
     this.#emit()
   }
@@ -1114,13 +1407,15 @@ class Client implements WispChatClient {
     try {
       const page = historySchema.parse(await s.rpc.getChatHistory(id))
       if (!this.#current(s)) return
-      if (s.selected === id && s.view === view) {
-        this.#replaceHistory(s, page.messages, true)
+      if (s.selected === id && s.view === view && s.turns.get(id) === turn) {
+        this.#replaceHistory(s, page, 'refresh')
         if (
           turn.stream &&
           !page.messages.some(
             (m) =>
-              m.sequence > turn.startSequence && m.author?.type === 'agent',
+              m.sequence > turn.streamAfterSequence &&
+              (m.type === 'error' ||
+                (m.type === 'message' && m.author?.type === 'agent')),
           )
         )
           s.local.push({
@@ -1144,6 +1439,7 @@ class Client implements WispChatClient {
         this.#current(s) &&
         s.selected === id &&
         s.view === view &&
+        s.turns.get(id) === turn &&
         turn.stream
       )
         s.local.push({
@@ -1154,7 +1450,7 @@ class Client implements WispChatClient {
           attachments: [],
         })
     } finally {
-      if (this.#current(s)) {
+      if (this.#current(s) && s.turns.get(id) === turn) {
         s.turns.delete(id)
         const meta = s.chats.find((c) => c.id === id)
         if (meta)

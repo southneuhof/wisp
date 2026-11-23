@@ -14,7 +14,8 @@ import {
 } from 'reka-ui'
 import ChatIcon from './ChatIcon.vue'
 import ChatIconButton from './ChatIconButton.vue'
-import { computed, nextTick, ref } from 'vue'
+import ChatWorkspaceDialog from './ChatWorkspaceDialog.vue'
+import { computed, ref } from 'vue'
 import type { Account, Workspace } from '@southneuhof/wisp-core'
 const props = defineProps<{
   account: Account | null
@@ -31,20 +32,17 @@ const selectedWorkspaceName = computed(
     props.workspaces.find((workspace) => workspace.id === props.workspaceId)
       ?.title || t.value.workspaces,
 )
-const workspaceName = ref('')
-const workspaceNameInput = ref<HTMLInputElement | null>(null)
-const isCreatingWorkspace = ref(false)
-async function openWorkspaceCreator(event: Event) {
-  event.preventDefault()
-  isCreatingWorkspace.value = !isCreatingWorkspace.value
-  await nextTick()
-  if (isCreatingWorkspace.value) workspaceNameInput.value?.focus()
+const settingsButton = ref<InstanceType<typeof ChatIconButton> | null>(null)
+const workspaceDialogOpen = ref(false)
+
+function handleMenuCloseFocus(event: Event) {
+  if (workspaceDialogOpen.value) event.preventDefault()
 }
-async function createWorkspace() {
-  if (await props.createWorkspace(workspaceName.value)) {
-    workspaceName.value = ''
-    isCreatingWorkspace.value = false
-  }
+
+function restoreSettingsFocus(event: Event) {
+  event.preventDefault()
+  const button = settingsButton.value?.$el
+  if (button instanceof HTMLButtonElement) button.focus()
 }
 
 const t = useChatMessages()
@@ -53,6 +51,7 @@ const t = useChatMessages()
   <DropdownMenuRoot>
     <DropdownMenuTrigger as-child>
       <ChatIconButton
+        ref="settingsButton"
         class="wisp-flex wisp-items-center wisp-justify-center wisp-text-on-surface-variant wisp-transition-colors hover:wisp-text-on-surface focus-visible:wisp-outline-none focus-visible:wisp-ring-2 focus-visible:wisp-ring-primary"
         label="Chat settings"
         icon="more_vert"
@@ -65,6 +64,7 @@ const t = useChatMessages()
         align="end"
         :side-offset="8"
         aria-label="Chat options"
+        @close-auto-focus="handleMenuCloseFocus"
       >
         <div
           v-if="account"
@@ -120,10 +120,9 @@ const t = useChatMessages()
                     :disabled="busy"
                     @select="emit('workspace', item.id)"
                   >
-                    <span class="wisp-min-w-0 wisp-flex-1 wisp-truncate"
-                      >{{ item.title }}{{ item.provisional ? ' · new' : ''
-                      }}{{ item.role === 'use' ? ' · use' : '' }}</span
-                    >
+                    <span class="wisp-min-w-0 wisp-flex-1 wisp-truncate">
+                      {{ item.title }}
+                    </span>
                     <ChatIcon
                       v-if="workspaceId === item.id"
                       :size="16"
@@ -138,33 +137,12 @@ const t = useChatMessages()
                   <DropdownMenuItem
                     class="wisp-menu-item wisp-menu-action wisp-flex wisp-min-h-10 wisp-items-center wisp-gap-2 wisp-rounded-xl wisp-px-3 wisp-py-2 wisp-text-sm wisp-outline-none"
                     :disabled="busy"
-                    @select="openWorkspaceCreator"
+                    @select="workspaceDialogOpen = true"
                   >
                     <ChatIcon :size="17" name="add" /><span>{{
                       t.newWorkspace
                     }}</span>
                   </DropdownMenuItem>
-                  <form
-                    v-if="isCreatingWorkspace"
-                    class="wisp-grid wisp-gap-2 wisp-border-t wisp-border-outline-variant wisp-px-2 wisp-py-3"
-                    @submit.prevent="createWorkspace"
-                  >
-                    <input
-                      ref="workspaceNameInput"
-                      v-model="workspaceName"
-                      class="wisp-min-w-0 wisp-rounded-xl wisp-border wisp-border-outline-variant wisp-bg-surface wisp-px-3 wisp-py-2 wisp-text-sm"
-                      :placeholder="t.workspaceName"
-                      :aria-label="t.workspaceName"
-                      required
-                    />
-                    <button
-                      type="submit"
-                      class="wisp-justify-self-end wisp-rounded-xl wisp-bg-primary wisp-px-3 wisp-py-2 wisp-text-sm wisp-text-on-primary wisp-transition hover:wisp-brightness-110 disabled:wisp-opacity-50"
-                      :disabled="busy"
-                    >
-                      {{ t.create }}
-                    </button>
-                  </form>
                 </div>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
@@ -198,4 +176,10 @@ const t = useChatMessages()
       </DropdownMenuContent>
     </DropdownMenuPortal>
   </DropdownMenuRoot>
+  <ChatWorkspaceDialog
+    v-model:open="workspaceDialogOpen"
+    :theme-style="themeStyle"
+    :create-workspace="createWorkspace"
+    @close-auto-focus="restoreSettingsFocus"
+  />
 </template>

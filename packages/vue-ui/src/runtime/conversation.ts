@@ -56,11 +56,14 @@ export function toThreadMessage(
       : message.status.type === 'complete'
         ? { type: 'complete', reason: 'stop' }
         : message.status
-  return {
+  const threadMessage: ThreadMessageLike = {
     id: message.id,
     role: message.role,
     content: message.text ? [{ type: 'text', text: message.text }] : [],
-    ...(message.role === 'assistant' ? { status } : {}),
+  }
+  if (message.role === 'assistant') return { ...threadMessage, status }
+  return {
+    ...threadMessage,
     attachments: message.attachments.map((attachment) => {
       const native: NativeAttachmentDisplayData =
         attachment.source.kind === 'history'

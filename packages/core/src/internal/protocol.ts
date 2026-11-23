@@ -6,34 +6,41 @@ export const workspaceSchema = z.object({
   title: z.string(),
   role: z.enum(['build', 'use']).default('build'),
 })
-export const chatSchema = z.object({
-  id: z.number(),
-  title: z.string(),
-  activeAgent: z.unknown().optional(),
-})
+export const chatSchema = z
+  .object({
+    id: z.number(),
+    title: z.string(),
+    activeAgent: z.unknown().optional(),
+  })
+  .passthrough()
 export const attachmentSchema = z.object({
   id: z.string(),
   name: z.string().optional(),
   mimeType: z.string(),
   size: z.number(),
 })
-export const messageSchema = z.object({
-  chatId: z.number(),
-  sequence: z.number(),
-  type: z.string(),
-  author: z
-    .object({
-      type: z.string(),
-      id: z.string().optional(),
-      name: z.string().optional(),
-    })
-    .optional(),
-  message: z.string().optional(),
-  attachments: z.array(attachmentSchema).optional(),
-})
+export const messageSchema = z
+  .object({
+    chatId: z.number(),
+    sequence: z.number(),
+    type: z.string(),
+    author: z
+      .object({
+        type: z.string(),
+        id: z.string().optional(),
+        name: z.string().optional(),
+      })
+      .optional(),
+    message: z.string().optional(),
+    attachments: z.array(attachmentSchema).optional(),
+  })
+  .passthrough()
 export const historySchema = z.object({
   messages: z.array(messageSchema),
-  compacted: z.object({ to: z.number(), summary: z.string() }).optional(),
+  compacted: z
+    .object({ to: z.number(), summary: z.string() })
+    .passthrough()
+    .optional(),
 })
 export type NativeMessage = z.infer<typeof messageSchema>
 export type NativeChat = z.infer<typeof chatSchema>
@@ -43,19 +50,45 @@ export interface UploadHandle {
   mimeType: string
   name?: string
 }
+export const streamEventSchema = z
+  .object({
+    type: z.string(),
+    delta: z.string().optional(),
+  })
+  .passthrough()
+export type NativeStreamEvent = z.infer<typeof streamEventSchema>
 export type Event =
-  | { type: 'generation' }
+  | { type: 'generation'; generation: number }
   | { type: 'metadata'; chat: NativeChat }
   | { type: 'deleted'; chatId: number }
   | { type: 'message'; message: NativeMessage }
-  | { type: 'stream'; chatId: number; event: { type: string; delta?: string } }
+  | { type: 'stream'; chatId: number; event: NativeStreamEvent }
+  | {
+      type: 'change'
+      chatId: number
+      generation: number
+      revision: number
+      author: unknown
+      change: unknown
+    }
+  | { type: 'action'; chatId?: number; action: Record<string, unknown> }
 export interface Subscriber {
   streamGeneration(generation: number): void
   metadata(chat: unknown): void
   deleted(chatId: number): void
   message(message: unknown): void
-  changeApplied(...args: unknown[]): void
+  changeApplied(
+    chatId: number,
+    generation: number,
+    revision: number,
+    author: unknown,
+    change: unknown,
+  ): void
   stream(chatId: number, event: unknown): void
+}
+export interface ActionsSubscriber {
+  entry(action: unknown): void
+  ready(): void
 }
 export interface NativeWorkspace {
   getMetadata(): Promise<unknown>
@@ -64,6 +97,19 @@ export interface NativeWorkspace {
   listModels(): Promise<unknown>
   getChatHistory(id: number, before?: number): Promise<unknown>
   subscribeToChat(subscriber: RpcStub<Subscriber>): Promise<RpcStub<object>>
+  subscribeToActions(
+    subscriber: RpcStub<ActionsSubscriber>,
+  ): Promise<RpcStub<object>>
+  approveAction(id: number): Promise<void>
+  rejectAction(id: number): Promise<void>
+  denyConnectionRequest(id: string): Promise<void>
+  approveWebFetchRequest(id: string): Promise<void>
+  denyWebFetchRequest(id: string): Promise<void>
+  readFilesAtCommit(commitId: string, paths: string[]): Promise<unknown>
+  listChangedPaths(fromCommit: string, toCommit: string): Promise<unknown>
+  mergeChanges(chatId: number): Promise<unknown>
+  revertChanges(chatId: number, revertFrom: number): Promise<void>
+  retryAgent(chatId: number, modelId: string): Promise<void>
   newChat(
     text: string,
     model: string | null,

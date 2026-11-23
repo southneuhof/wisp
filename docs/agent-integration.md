@@ -81,6 +81,8 @@ Completion: one client-side host mounts, its launcher opens the packaged chat, a
 
 **Core:** create one client with `createWispChat({ url })`, subscribe to snapshots, then call `start()`. Call the returned unsubscribe function and `dispose()` on teardown.
 
+Loaded conversations can include `activity` and `draftChanges`. Read them from the same subscription as messages. The optional `client.activity` exposes `decide(activityId, decision)` and `reviewChanges(decision)`. Decisions are scoped to the active conversation. Use `draftChanges.ready` to tell whether Wisp has the file data needed for review and the workspace's `running` flag to wait for the agent to finish. The ready-made Vue UI renders these states and links to CloudflareOS for actions that require native setup.
+
 For a custom interface, narrow snapshots by `status` before reading account/workspace data. A workspace is chat-ready only when `workspace.status === 'ready'`. Select a workspace before a model/conversation. Model IDs come from `workspace.models`. Handle rejected operations in the UI.
 
 The public action signatures are in `packages/core/src/types.ts` or the installed `dist/types.d.ts`. Use those declarations as the API authority. Login uses `client.auth.signIn({ username, password })`; sending uses `client.conversations.send({ text, files })`. Password values come from the user's form and remain transient.

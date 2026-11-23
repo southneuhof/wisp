@@ -25,6 +25,12 @@ The component uses assistant-ui's Vue primitives and Reka UI directly. The packa
 
 The caller owns the chat binding. Closing the panel preserves the session and draft. Unmounting the owner disposes its client. Sessions and selections automatically restore after a refresh.
 
+## Conversation activity
+
+Wisp shows CloudflareOS reasoning, tool progress, and requests in the conversation. You can approve or reject supported requests there. Requests that require connection setup open the same conversation in CloudflareOS.
+
+File edits show a wrapped, side-by-side diff when CloudflareOS supplies enough information to reconstruct the changes. Accepting or discarding pending changes applies to the entire conversation draft. Wait for the agent to finish before reviewing the draft.
+
 ## Theme
 
 Pass a partial `WispChatTheme` through `theme`. Values are CSS colors, so they can reference an application's CSS variables. The font family can also be configured. Defaults work without any host stylesheet.
@@ -53,7 +59,7 @@ The palette is applied to the floating panel and all portaled menus. Styles and 
 
 ## Reusable parts
 
-The package exports `ChatConversationPicker`, `ChatModelPicker`, `ChatOptionsMenu`, `ChatSignIn`, `ChatIconButton`, `ChatIcon`, `ChatSpinner`, and `useChatTheme` for composing custom interfaces. Menu components receive data and actions through typed props/events and use Reka primitives internally.
+The package exports `ChatConversationPicker`, `ChatModelPicker`, `ChatOptionsMenu`, `ChatDialog`, `ChatSignIn`, `ChatIconButton`, `ChatIcon`, `ChatSpinner`, and `useChatTheme` for composing custom interfaces. Menus and dialogs use Reka UI primitives. Bind `ChatDialog` with `v-model:open` and supply the `title`, body, and optional `footer` slot.
 
 `ChatMessage`, `ChatMarkdown`, and `ChatAttachmentPreview` consume assistant-ui context and can be used inside an assistant-ui Vue provider. `ChatAttachment` accepts a native SDK attachment and chat binding directly.
 

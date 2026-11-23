@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RpcStub } from 'capnweb'
 import { createWispChat } from '../packages/core/src/client.js'
 import type {
-  NativeWorkspace,
+  ActionsSubscriber,
   Subscriber,
 } from '../packages/core/src/internal/protocol.js'
 const network = vi.hoisted(() => ({
@@ -27,6 +27,7 @@ function deferred<T>() {
 }
 function workspace(id = 'a') {
   let subscriber: RpcStub<Subscriber> | undefined
+  let actionsSubscriber: RpcStub<ActionsSubscriber> | undefined
   const value = {
     getMetadata: vi.fn<() => Promise<unknown>>(async () => ({
       id,
@@ -49,6 +50,20 @@ function workspace(id = 'a') {
         return { [Symbol.dispose]: vi.fn() }
       },
     ),
+    subscribeToActions: vi.fn(async (target: RpcStub<ActionsSubscriber>) => {
+      actionsSubscriber = target
+      return { [Symbol.dispose]: vi.fn() }
+    }),
+    approveAction: vi.fn(async (_id: number) => {}),
+    rejectAction: vi.fn(async (_id: number) => {}),
+    denyConnectionRequest: vi.fn(async (_id: string) => {}),
+    approveWebFetchRequest: vi.fn(async (_id: string) => {}),
+    retryAgent: vi.fn(async (_id: number, _model: string) => {}),
+    mergeChanges: vi.fn(async (_id: number) => ({ outcome: 'merged' })),
+    revertChanges: vi.fn(async (_id: number, _from: number) => {}),
+    readFilesAtCommit: vi.fn(async () => [
+      ['README.md', { kind: 'text', text: 'Before' }],
+    ]),
     newChat: vi.fn(async () => 2),
     sendChatMessage: vi.fn(async () => {}),
     stopAgent: vi.fn(async () => {}),
@@ -63,6 +78,10 @@ function workspace(id = 'a') {
     get subscriber() {
       if (!subscriber) throw new Error('No subscription')
       return subscriber
+    },
+    get actionsSubscriber() {
+      if (!actionsSubscriber) throw new Error('No action subscription')
+      return actionsSubscriber
     },
   }
 }
@@ -887,4 +906,233 @@ it('stops a dispatched pending existing-chat send once and allows retry after a 
   await f.a.subscriber.metadata({ id: 1, title: 'C' })
   await vi.waitFor(() => expect(ready(f).running).toBe(false))
   f.client.dispose()
+})
+
+describe('conversation activity', () => {
+  async function open() {
+    const f = setup()
+    await login(f)
+    await f.client.workspaces.select('a')
+    await f.client.conversations.select(1)
+    const operations = f.client.activity
+    if (!operations) throw new Error('No activity commands')
+    const conversation = () => {
+      const selected = ready(f).conversation
+      if (selected.status === 'draft')
+        throw new Error('No selected conversation')
+      return selected
+    }
+    return { ...f, operations, conversation }
+  }
+
+  it('replaces live reasoning and tool rows with durable results, preserving response placement', async () => {
+    const f = await open()
+    const item = f.a.subscriber
+    await item.metadata({ id: 1, title: 'Conversation', activeAgent: {} })
+    await item.stream(1, { type: 'reasoningDelta', delta: 'Thinking.' })
+    await item.stream(1, {
+      type: 'toolCallStarted',
+      toolCallId: 'first',
+      toolName: 'readFile',
+    })
+    await item.stream(1, {
+      type: 'toolCallTarget',
+      toolCallId: 'first',
+      file: { filename: 'README.md' },
+    })
+    await item.stream(1, { type: 'toolCallFinished', toolCallId: 'first' })
+    expect(f.conversation().activity).toMatchObject([
+      { kind: 'reasoning', text: 'Thinking.' },
+      {
+        id: 'tool:first',
+        kind: 'tool',
+        title: 'Read README.md',
+        state: 'running',
+      },
+    ])
+
+    await item.stream(1, { type: 'textDelta', delta: 'Initial response' })
+    const saved = {
+      ...row(4, 'agent', 'Initial response'),
+      reasoning: 'Thinking.',
+      toolCalls: [
+        {
+          toolCallId: 'first',
+          toolName: 'readFile',
+          input: { filename: 'README.md' },
+          error: 'File missing',
+        },
+      ],
+    }
+    await item.message(saved)
+    await item.message(saved)
+    await item.stream(1, { type: 'textDelta', delta: 'Continuing' })
+    await item.message({ ...row(5), type: 'catalogChange' })
+    expect(f.conversation().activity).toMatchObject([
+      { kind: 'reasoning', sequence: 4, text: 'Thinking.' },
+      {
+        id: 'tool:first',
+        sequence: 4,
+        kind: 'tool',
+        title: 'Read README.md',
+        state: 'failed',
+        detail: 'File missing',
+      },
+    ])
+    expect(f.conversation().messages.map((message) => message.text)).toEqual([
+      'Initial response',
+      'Continuing',
+    ])
+    await item.stream(1, { type: 'reasoningDelta', delta: 'Discard me.' })
+    await item.stream(1, { type: 'streamReset' })
+    expect(f.conversation().activity).toHaveLength(2)
+    expect(f.conversation().messages).toHaveLength(1)
+    f.client.dispose()
+  })
+
+  it('reconciles decisions from both subscriptions and delegates connection setup to CloudflareOS', async () => {
+    const f = await open()
+    const request = {
+      id: 17,
+      chatId: 1,
+      type: 'action',
+      state: 'pending',
+      resourceTitle: 'Linear',
+      description: {
+        title: 'Create an issue',
+        description: 'Record the follow-up.',
+        fields: [{ kind: 'inline', label: 'Title', value: 'Review checklist' }],
+      },
+    }
+    await f.a.actionsSubscriber.entry(request)
+    await f.a.subscriber.message({
+      ...row(6),
+      type: 'action',
+      actionId: 17,
+      actionLog: request,
+    })
+    expect(f.conversation().activity).toMatchObject([
+      {
+        id: 'action:17',
+        sequence: 6,
+        kind: 'request',
+        title: 'Create an issue',
+        state: 'pending',
+        fields: [
+          { label: 'Resource', value: 'Linear' },
+          { label: 'Title', value: 'Review checklist' },
+        ],
+      },
+    ])
+
+    await f.operations.decide('action:17', 'approve')
+    expect(f.a.value.approveAction).toHaveBeenCalledOnce()
+    expect(f.a.value.approveAction).toHaveBeenCalledWith(17)
+    await f.a.subscriber.message({
+      ...row(6),
+      type: 'action',
+      actionId: 17,
+      actionLog: request,
+    })
+    await f.a.actionsSubscriber.entry({ ...request, state: 'approved' })
+    await f.operations.decide('action:17', 'approve')
+    expect(f.a.value.approveAction).toHaveBeenCalledOnce()
+    expect(f.conversation().activity).toMatchObject([
+      { id: 'action:17', sequence: 6, state: 'approved' },
+    ])
+
+    await f.a.subscriber.message({
+      ...row(7),
+      type: 'connectionRequest',
+      requestId: 'native-account',
+      vendorName: 'GitHub',
+      state: 'pending',
+    })
+    await expect(
+      f.operations.decide('connection:native-account', 'approve'),
+    ).rejects.toThrow('Complete setup in CloudflareOS')
+    await f.operations.decide('connection:native-account', 'reject')
+    expect(f.a.value.denyConnectionRequest).toHaveBeenCalledWith(
+      'native-account',
+    )
+    await f.a.subscriber.message({
+      ...row(8),
+      type: 'webFetchRequest',
+      requestId: 'fetch',
+      url: 'https://example.com',
+      state: 'pending',
+    })
+    await f.operations.decide('web:fetch', 'approve')
+    expect(f.a.value.approveWebFetchRequest).toHaveBeenCalledWith('fetch')
+    f.client.dispose()
+  })
+
+  it('retries only the latest failed response and never resends the user message', async () => {
+    const f = await open()
+    await f.a.subscriber.message({ ...row(3), type: 'error', code: 'stopped' })
+    await f.a.subscriber.message({
+      ...row(4, 'agent', 'Server timed out'),
+      type: 'error',
+    })
+    expect(f.conversation().activity).toMatchObject([
+      { id: 'os:1:3', kind: 'notice' },
+      {
+        id: 'os:1:4',
+        kind: 'error',
+        detail: 'Server timed out',
+        retryable: true,
+      },
+    ])
+    await f.operations.retry?.()
+    await f.operations.retry?.()
+    expect(f.a.value.retryAgent).toHaveBeenCalledExactlyOnceWith(1, 'model')
+    expect(f.a.value.sendChatMessage).not.toHaveBeenCalled()
+    expect(f.conversation().activity?.at(-1)).not.toHaveProperty('retryable')
+    f.client.dispose()
+  })
+
+  it('uses the native merge and discard-all operations for pending changes', async () => {
+    const f = await open()
+    const metadata = {
+      id: 1,
+      title: 'Conversation',
+      proposedChangeWorkpieces: [7],
+      codeBase: {
+        generation: 3,
+        revision: 1,
+        pins: [{ gadgetId: 7, baseCommit: 'base', mergedCommit: 'base' }],
+      },
+    }
+    await f.a.subscriber.metadata(metadata)
+    await f.a.subscriber.changeApplied(
+      1,
+      3,
+      1,
+      { type: 'agent' },
+      { '7': [['README.md', { set: 'After' }]] },
+    )
+    await vi.waitFor(() =>
+      expect(f.conversation().draftChanges).toMatchObject({
+        pending: true,
+        ready: true,
+        files: [{ path: 'README.md', before: 'Before', after: 'After' }],
+      }),
+    )
+    f.a.value.mergeChanges.mockResolvedValueOnce({ outcome: 'stale' })
+    await expect(f.operations.reviewChanges('accept')).rejects.toThrow(
+      'Mainline changed',
+    )
+    expect(f.conversation().draftChanges?.pending).toBe(true)
+    expect(f.a.value.revertChanges).not.toHaveBeenCalled()
+
+    await f.a.subscriber.metadata({ ...metadata, activeAgent: {} })
+    await f.operations.reviewChanges('discard')
+    expect(f.a.value.revertChanges).not.toHaveBeenCalled()
+    f.a.value.getChatHistory.mockResolvedValue({ messages: [] })
+    await f.a.subscriber.metadata(metadata)
+    await vi.waitFor(() => expect(ready(f).running).toBe(false))
+    await f.operations.reviewChanges('discard')
+    expect(f.a.value.revertChanges).toHaveBeenCalledExactlyOnceWith(1, 0)
+    f.client.dispose()
+  })
 })

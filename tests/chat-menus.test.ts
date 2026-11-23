@@ -55,7 +55,7 @@ async function setup() {
   })
   await wrapper.get('button[aria-label="Open chat"]').trigger('click')
   await flushPromises()
-  return { wrapper, selectModel, startNew, signOut, state }
+  return { client, wrapper, selectModel, startNew, signOut, state }
 }
 async function openMenu(
   wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
@@ -115,17 +115,55 @@ describe('standalone floating menus', () => {
       'false',
     )
   })
-  it('opens workspace creation in the side submenu and signs out with the header icon', async () => {
+  it('creates a workspace in a dialog and signs out from settings', async () => {
     const f = await setup()
+    const current = f.state.value
+    if (current.status !== 'authenticated') throw new Error('Expected account')
+    f.state.value = {
+      ...current,
+      workspaces: [
+        { id: 'a', title: 'Workspace A', role: 'use', provisional: true },
+      ],
+    }
+    const createWorkspace = vi
+      .spyOn(f.client.workspaces, 'create')
+      .mockRejectedValueOnce(new Error('Unavailable'))
+      .mockResolvedValueOnce({ id: 'b', title: 'New project', role: 'build' })
+
     await openMenu(f.wrapper, 'Chat settings')
     await clickItem(item('Workspace A'))
-    await clickItem(item('Create workspace'))
     expect(
-      document.querySelector('input[aria-label="Workspace name"]'),
-    ).not.toBeNull()
+      document.querySelector('.wisp-workspace-menu')?.textContent,
+    ).not.toMatch(/· (use|new)/)
+    await clickItem(item('Create workspace'))
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')
+    const input = dialog?.querySelector('input')
+    const form = dialog?.querySelector('form')
+    if (!input || !form) throw new Error('Expected workspace dialog')
+    input.value = '  New project  '
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    const submit = () =>
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      )
+
+    submit()
+    await flushPromises()
+    expect(dialog?.querySelector('[role="alert"]')?.textContent).toContain(
+      'The workspace could not be created.',
+    )
+    expect(input.value).toBe('  New project  ')
+
+    submit()
+    await flushPromises()
+    expect(createWorkspace).toHaveBeenLastCalledWith({ title: 'New project' })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(f.wrapper.get('.wisp-floating').attributes('aria-hidden')).toBe(
       'false',
     )
+
+    await openMenu(f.wrapper, 'Chat settings')
     document
       .querySelector<HTMLButtonElement>('button[aria-label="Sign out"]')
       ?.click()

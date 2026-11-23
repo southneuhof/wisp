@@ -1,7 +1,11 @@
 import { newWebSocketRpcSession, RpcTarget, RpcStub } from 'capnweb'
-import { z } from 'zod'
-import { chatSchema, messageSchema } from './protocol.js'
-import type { NativePublic, Subscriber, Event } from './protocol.js'
+import { chatSchema, messageSchema, streamEventSchema } from './protocol.js'
+import type {
+  NativePublic,
+  Subscriber,
+  Event,
+  ActionsSubscriber,
+} from './protocol.js'
 export function rpcUrl(url: string): string {
   const parsed = new URL(url)
   if (
@@ -33,8 +37,8 @@ export function subscribeTarget(
   emit: (event: Event) => void,
 ): RpcStub<Subscriber> {
   class Target extends RpcTarget implements Subscriber {
-    streamGeneration(_generation: number) {
-      emit({ type: 'generation' })
+    streamGeneration(generation: number) {
+      emit({ type: 'generation', generation })
     }
     metadata(value: unknown) {
       const chat = chatSchema.parse(value)
@@ -46,16 +50,38 @@ export function subscribeTarget(
     message(value: unknown) {
       emit({ type: 'message', message: messageSchema.parse(value) })
     }
-    changeApplied(..._args: unknown[]) {}
+    changeApplied(
+      chatId: number,
+      generation: number,
+      revision: number,
+      author: unknown,
+      change: unknown,
+    ) {
+      emit({ type: 'change', chatId, generation, revision, author, change })
+    }
     stream(chatId: number, value: unknown) {
-      const event = z
-        .object({ type: z.string(), delta: z.string().optional() })
-        .parse(value)
-      emit({ type: 'stream', chatId, event })
+      const event = streamEventSchema.safeParse(value)
+      if (event.success) emit({ type: 'stream', chatId, event: event.data })
     }
   }
   return new RpcStub<Subscriber>(new Target())
 }
+export function subscribeActionsTarget(
+  emit: (event: Event) => void,
+): RpcStub<ActionsSubscriber> {
+  class Target extends RpcTarget implements ActionsSubscriber {
+    entry(value: unknown) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return
+      const action = value as Record<string, unknown>
+      const chatId =
+        typeof action.chatId === 'number' ? action.chatId : undefined
+      emit({ type: 'action', chatId, action })
+    }
+    ready() {}
+  }
+  return new RpcStub<ActionsSubscriber>(new Target())
+}
+
 export async function hashPassword(
   username: string,
   password: string,

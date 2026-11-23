@@ -49,12 +49,69 @@ export interface ChatError {
     | 'operation'
   readonly message: string
 }
+export type ChatRequest =
+  | {
+      readonly kind: 'action'
+      readonly id: number
+      readonly requiresSetup?: boolean
+    }
+  | { readonly kind: 'connection'; readonly id: string }
+  | { readonly kind: 'web'; readonly id: string }
+
+export type ChatActivity = {
+  readonly id: string
+  readonly sequence?: number
+} & (
+  | { readonly kind: 'reasoning'; readonly text: string }
+  | {
+      readonly kind: 'tool'
+      readonly title: string
+      readonly state: 'running' | 'complete' | 'failed'
+      readonly detail?: string
+    }
+  | {
+      readonly kind: 'request'
+      readonly title: string
+      readonly detail?: string
+      readonly fields?: readonly {
+        readonly label: string
+        readonly value: string
+      }[]
+      readonly state: 'pending' | 'approved' | 'rejected'
+      readonly request: ChatRequest
+    }
+  | {
+      readonly kind: 'error'
+      readonly title: string
+      readonly detail?: string
+      readonly retryable?: boolean
+    }
+  | { readonly kind: 'notice'; readonly text: string }
+)
+
+export interface ChatDraftFile {
+  readonly workpieceId: number
+  readonly path: string
+  readonly before?: string
+  readonly after?: string
+  readonly state: 'previewing' | 'queued' | 'applied'
+  readonly binary?: boolean
+}
+
+export interface ChatDraftChanges {
+  readonly pending: boolean
+  readonly ready: boolean
+  readonly files: readonly ChatDraftFile[]
+}
+
 export type ConversationView =
   | { readonly status: 'draft'; readonly messages: readonly Message[] }
   | {
       readonly status: 'loading' | 'conversation'
       readonly id: number
       readonly messages: readonly Message[]
+      readonly activity?: readonly ChatActivity[]
+      readonly draftChanges?: ChatDraftChanges
     }
 export type WorkspaceState =
   | { readonly status: 'none' }
@@ -126,6 +183,11 @@ export interface WispChatClient {
     send(input: SendOptions): Promise<void>
     stop(): Promise<void>
     loadEarlier(): Promise<void>
+  }
+  readonly activity?: {
+    decide(activityId: string, decision: 'approve' | 'reject'): Promise<void>
+    reviewChanges(decision: 'accept' | 'discard'): Promise<void>
+    retry?(): Promise<void>
   }
   readonly attachments: { download(attachment: Attachment): Promise<Blob> }
 }

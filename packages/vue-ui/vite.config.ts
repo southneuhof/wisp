@@ -20,7 +20,12 @@ export default defineConfig({
       cssFileName: 'style',
     },
     rollupOptions: {
-      external: ['vue', '@southneuhof/wisp-core', '@southneuhof/wisp-vue'],
+      external: [
+        'vue',
+        '@southneuhof/wisp-core',
+        '@southneuhof/wisp-vue',
+        '@pierre/diffs',
+      ],
     },
   },
 })

@@ -39,7 +39,11 @@ import type { WispChatBinding } from '@southneuhof/wisp-vue'
 import type { ChatMessages, ChatErrorMessages } from './messages.js'
 import type { WispChatTheme } from './theme.js'
 import { useChatTheme } from './useChatTheme.js'
-import type { Conversation, WorkspaceState } from '@southneuhof/wisp-core'
+import type {
+  ChatActivity,
+  Conversation,
+  WorkspaceState,
+} from '@southneuhof/wisp-core'
 import type {
   ConversationMessage,
   NativeAttachmentDisplayData,
@@ -52,6 +56,8 @@ import {
 import ChatAttachmentPreview from './ChatAttachmentPreview.vue'
 import ChatModelContext from './ChatModelContext.vue'
 import ChatMessage from './ChatMessage.vue'
+import ChatDraftCard from './ChatDraftCard.vue'
+import ChatThreadActivity from './ChatThreadActivity.vue'
 
 const props = defineProps<{
   chat: WispChatBinding
@@ -136,8 +142,7 @@ const retryRequest = ref<{ text: string; files: File[] }>()
 const focusPending = ref(false)
 let focusObserver: MutationObserver | undefined
 let threadRestoreRequest = 0
-let downloadUrlTimer: ReturnType<typeof setTimeout> | undefined
-const downloadAttachmentUrls = new Set<string>()
+const downloadAttachmentUrls = new Map<string, ReturnType<typeof setTimeout>>()
 const draftFiles = new Map<string, File>()
 let autoSelectingWorkspace = false
 let attemptedWorkspace: { accountId: string; workspaceId: string } | undefined
@@ -145,9 +150,36 @@ let attemptedWorkspace: { accountId: string; workspaceId: string } | undefined
 const pastConversations = computed<readonly Conversation[]>(
   () => workspace.value?.conversations ?? [],
 )
+const currentConversation = computed(() => workspace.value?.conversation)
 const selectedChatId = computed(() => {
-  const view = workspace.value?.conversation
+  const view = currentConversation.value
   return view && view.status !== 'draft' ? view.id : null
+})
+const nativeChatUrl = computed(() => {
+  const workspaceId = workspace.value?.workspace.id
+  if (!workspaceId || selectedChatId.value === null) return endpoint
+  const url = new URL(`/workspace/${encodeURIComponent(workspaceId)}`, endpoint)
+  url.searchParams.set('chat', String(selectedChatId.value))
+  url.searchParams.set('showChat', 'true')
+  return url.href
+})
+const chatActivity = computed(() => {
+  const view = currentConversation.value
+  return view && view.status !== 'draft' ? (view.activity ?? []) : []
+})
+const draftChanges = computed(() => {
+  const view = currentConversation.value
+  const changes =
+    view && view.status !== 'draft' ? view.draftChanges : undefined
+  return changes && (changes.pending || changes.files.length)
+    ? changes
+    : undefined
+})
+const displayedMessages = computed(() => {
+  const activityIds = new Set(chatActivity.value.map((entry) => entry.id))
+  return (currentConversation.value?.messages ?? []).filter(
+    (message) => !activityIds.has(message.id),
+  )
 })
 const currentConversationTitle = computed(() => {
   const view = workspace.value?.conversation
@@ -158,7 +190,7 @@ const currentConversationTitle = computed(() => {
   )
 })
 const messages = computed<ConversationMessage[]>(() =>
-  (workspace.value?.conversation.messages ?? []).map((message, index) => ({
+  displayedMessages.value.map((message, index) => ({
     id: message.id,
     role: message.role,
     text: message.text,
@@ -188,6 +220,77 @@ const messages = computed<ConversationMessage[]>(() =>
     sequence: message.sequence,
     order: message.sequence ?? index,
   })),
+)
+const assistantAttachments = computed(() => {
+  const byMessage = new Map<string, NativeAttachmentDisplayData[]>()
+  for (const message of displayedMessages.value) {
+    if (message.role !== 'assistant' || !message.attachments.length) continue
+    byMessage.set(
+      message.id,
+      message.attachments.map((attachment) => ({
+        kind: 'native',
+        chatId: attachment.chatId,
+        attachmentId: attachment.id,
+        mimeType: attachment.mimeType,
+        name: attachment.name,
+      })),
+    )
+  }
+  return byMessage
+})
+const threadActivity = computed(() => {
+  const before: ChatActivity[] = []
+  const after = new Map<string, ChatActivity[]>()
+  const latest: ChatActivity[] = []
+  const newestMessages = displayedMessages.value
+    .filter((message) => message.sequence !== undefined)
+    .reverse()
+
+  function addAfter(id: string, entry: ChatActivity) {
+    const entries = after.get(id)
+    if (entries) entries.push(entry)
+    else after.set(id, [entry])
+  }
+
+  for (const entry of chatActivity.value) {
+    if (entry.sequence === undefined) {
+      latest.push(entry)
+      continue
+    }
+    const sequence = entry.sequence
+    const anchor = newestMessages.find(
+      (message) => (message.sequence ?? Infinity) <= sequence,
+    )
+    if (anchor) addAfter(anchor.id, entry)
+    else before.push(entry)
+  }
+  for (const message of displayedMessages.value) {
+    if (message.status === 'error') {
+      addAfter(message.id, {
+        id: message.id,
+        kind: 'error',
+        title: t.value.responseInterrupted,
+        detail: t.value.responseIncomplete,
+        sequence: message.sequence,
+      })
+    } else if (message.status === 'cancelled') {
+      addAfter(message.id, {
+        id: message.id,
+        kind: 'notice',
+        text: t.value.responseCancelled,
+        sequence: message.sequence,
+      })
+    }
+  }
+  return { before, after, latest }
+})
+const hasThreadContent = computed(() =>
+  Boolean(
+    messages.value.length ||
+      chatActivity.value.length ||
+      draftChanges.value ||
+      showSelectedAgentThinking.value,
+  ),
 )
 const hasEarlier = computed(() => workspace.value?.hasEarlier ?? false)
 const loadingEarlier = computed(() => workspace.value?.loadingEarlier ?? false)
@@ -561,7 +664,11 @@ async function handleDownload(
   try {
     const blob = await chat.client.attachments.download(attachment)
     const url = URL.createObjectURL(blob)
-    downloadAttachmentUrls.add(url)
+    const timer = setTimeout(() => {
+      downloadAttachmentUrls.delete(url)
+      URL.revokeObjectURL(url)
+    }, 1000)
+    downloadAttachmentUrls.set(url, timer)
     const link = document.createElement('a')
     link.href = url
     link.download = data.name
@@ -569,11 +676,6 @@ async function handleDownload(
     document.body.appendChild(link)
     link.click()
     link.remove()
-    if (downloadUrlTimer) clearTimeout(downloadUrlTimer)
-    downloadUrlTimer = setTimeout(() => {
-      downloadAttachmentUrls.delete(url)
-      URL.revokeObjectURL(url)
-    }, 1000)
   } catch {
     composerError.value = 'This attachment could not be downloaded.'
   }
@@ -582,8 +684,7 @@ function handleOutsidePointerDown(event: PointerEvent): void {
   if (!composerOpen.value || !(event.target instanceof Node)) return
   if (
     event.target instanceof Element &&
-    (event.target.closest('.wisp-menu-content') ||
-      event.target.closest('.wisp-menu-content'))
+    event.target.closest('.wisp-menu-content, .wisp-dialog-layer')
   )
     return
   if (floatingElement.value?.contains(event.target)) return
@@ -697,9 +798,9 @@ async function createWorkspace(title: string): Promise<boolean> {
   busyAction.value = true
   try {
     await chat.client.workspaces.create({ title: title.trim() || undefined })
+    composerError.value = ''
     return true
   } catch {
-    composerError.value = 'The workspace could not be created.'
     return false
   } finally {
     busyAction.value = false
@@ -737,7 +838,8 @@ const actions: WispChatActions = {
     await chat.client.workspaces.list()
   },
   createWorkspace: async (title) => {
-    await createWorkspace(title ?? '')
+    if (!(await createWorkspace(title ?? '')))
+      composerError.value = t.value.workspaceCreateError
   },
   selectConversation: async (id) => {
     const item = pastConversations.value.find((item) => item.id === id)
@@ -752,8 +854,11 @@ onBeforeUnmount(() => {
   draftFiles.clear()
   document.removeEventListener('pointerdown', handleOutsidePointerDown)
   focusObserver?.disconnect()
-  if (downloadUrlTimer) clearTimeout(downloadUrlTimer)
-  downloadAttachmentUrls.forEach((url) => URL.revokeObjectURL(url))
+  for (const [url, timer] of downloadAttachmentUrls) {
+    clearTimeout(timer)
+    URL.revokeObjectURL(url)
+  }
+  downloadAttachmentUrls.clear()
 })
 </script>
 
@@ -918,8 +1023,7 @@ onBeforeUnmount(() => {
                   account &&
                   workspace &&
                   connectionState === 'ready' &&
-                  !messages.length &&
-                  !showSelectedAgentThinking
+                  !hasThreadContent
                 "
                 name="empty-state"
               />
@@ -928,7 +1032,7 @@ onBeforeUnmount(() => {
                   account &&
                   workspace &&
                   connectionState === 'ready' &&
-                  (messages.length || showSelectedAgentThinking)
+                  hasThreadContent
                 "
                 class="wisp-thread-fade wisp-relative wisp-z-10 wisp-min-h-0 wisp-overflow-y-auto wisp-overscroll-contain wisp-px-1"
                 :class="{ 'wisp-thread-scrolled': threadScrolled }"
@@ -951,13 +1055,52 @@ onBeforeUnmount(() => {
                       }}
                     </button>
                   </div>
+                  <ChatThreadActivity
+                    v-if="threadActivity.before.length"
+                    :key="`before:${selectedChatId}`"
+                    :entries="threadActivity.before"
+                    :native-url="nativeChatUrl"
+                    :decide="chat.client.activity?.decide"
+                    :retry="chat.client.activity?.retry"
+                  />
                   <ThreadPrimitiveMessages>
                     <template #default>
-                      <slot name="message"
-                        ><ChatMessage @download="handleDownload"
-                      /></slot>
+                      <ChatMessage
+                        :assistant-attachments="assistantAttachments"
+                        @download="handleDownload"
+                      >
+                        <template v-if="$slots.message" #default>
+                          <slot name="message" />
+                        </template>
+                        <template #after="{ messageId }">
+                          <ChatThreadActivity
+                            v-if="threadActivity.after.has(messageId)"
+                            :entries="threadActivity.after.get(messageId) ?? []"
+                            :native-url="nativeChatUrl"
+                            :decide="chat.client.activity?.decide"
+                            :retry="chat.client.activity?.retry"
+                          />
+                        </template>
+                      </ChatMessage>
                     </template>
                   </ThreadPrimitiveMessages>
+                  <ChatThreadActivity
+                    v-if="threadActivity.latest.length"
+                    :key="`latest:${selectedChatId}`"
+                    :entries="threadActivity.latest"
+                    :native-url="nativeChatUrl"
+                    :decide="chat.client.activity?.decide"
+                    :retry="chat.client.activity?.retry"
+                  />
+                  <ChatDraftCard
+                    v-if="draftChanges"
+                    :key="selectedChatId ?? 'draft'"
+                    class="wisp-mb-3"
+                    :changes="draftChanges"
+                    :running="isBusy"
+                    :native-url="nativeChatUrl"
+                    :review="chat.client.activity?.reviewChanges"
+                  />
                   <div
                     v-if="showSelectedAgentThinking"
                     class="wisp-mb-2 wisp-flex wisp-w-full wisp-justify-start"
@@ -966,7 +1109,7 @@ onBeforeUnmount(() => {
                     aria-label="Assistant is thinking"
                   >
                     <div
-                      class="wisp-flex wisp-items-center wisp-gap-1.5 wisp-rounded-2xl wisp-bg-surface-container-high/80 wisp-px-4 wisp-py-3 wisp-text-on-surface-variant wisp-shadow-sm"
+                      class="wisp-flex wisp-items-center wisp-gap-1.5 wisp-px-2 wisp-py-2 wisp-text-on-surface-variant"
                       aria-hidden="true"
                     >
                       <span
