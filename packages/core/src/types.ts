@@ -76,7 +76,9 @@ export type ChatActivity = {
       readonly fields?: readonly {
         readonly label: string
         readonly value: string
+        readonly kind?: 'json'
       }[]
+      readonly incomplete?: boolean
       readonly state: 'pending' | 'approved' | 'rejected'
       readonly request: ChatRequest
     }

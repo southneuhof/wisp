@@ -1067,6 +1067,44 @@ describe('conversation activity', () => {
     f.client.dispose()
   })
 
+  it('summarizes connection inspection while preserving structured approval arguments', async () => {
+    const f = await open()
+    await f.a.subscriber.message({
+      ...row(4, 'agent', ''),
+      toolCalls: [
+        {
+          toolName: 'describeBinding',
+          toolCallId: 'binding',
+          output:
+            'Binding: env.EDITORIAL\nTitle: Editorial\nTypeScript type: McpSession\n\n```\nexport type RemoteSchema = string\n```',
+        },
+      ],
+    })
+    await f.a.actionsSubscriber.entry({
+      id: 17,
+      chatId: 1,
+      type: 'action',
+      state: 'pending',
+      description: {
+        title: 'Editorial: create_category',
+        descriptionIsComplete: true,
+        fields: [
+          { kind: 'json', label: 'Arguments', value: '{"locale":"en"}' },
+        ],
+      },
+    })
+    expect(f.conversation().activity).toMatchObject([
+      { id: 'tool:binding', detail: 'Editorial' },
+      {
+        id: 'action:17',
+        fields: [
+          { label: 'Arguments', kind: 'json', value: '{"locale":"en"}' },
+        ],
+      },
+    ])
+    f.client.dispose()
+  })
+
   it('retries only the latest failed response and never resends the user message', async () => {
     const f = await open()
     await f.a.subscriber.message({ ...row(3), type: 'error', code: 'stopped' })

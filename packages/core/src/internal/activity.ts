@@ -84,7 +84,15 @@ function actionFields(fields: unknown) {
       ]
         .filter(Boolean)
         .join('\n')
-    return value === undefined ? [] : [{ label, value }]
+    return value === undefined
+      ? []
+      : [
+          {
+            label,
+            value,
+            ...(field.kind === 'json' && { kind: 'json' as const }),
+          },
+        ]
   })
 }
 
@@ -109,14 +117,10 @@ function actionActivity(
   const pushes =
     Array.isArray(description?.pushedCommits) &&
     description.pushedCommits.length > 0
+  const incomplete = !!description && description.descriptionIsComplete !== true
   const details = [
     string(description?.description),
     pushes ? 'Review the commits in CloudflareOS before approving.' : undefined,
-    description &&
-    description.descriptionIsComplete !== true &&
-    state === 'pending'
-      ? 'CloudflareOS reports that these action details are incomplete.'
-      : undefined,
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -126,6 +130,7 @@ function actionActivity(
     kind: 'request',
     title: string(description?.title) ?? resource ?? 'Action approval',
     detail: details || undefined,
+    incomplete,
     fields: resource
       ? [{ label: 'Resource', value: resource }, ...(fields ?? [])]
       : fields,
@@ -209,13 +214,18 @@ function nativeTool(raw: unknown, sequence: number): ToolActivity | undefined {
   if (!toolName || !id) return
   const input = record(tool?.input)
   const error = string(tool?.error)
+  const output = string(tool?.output)
   return {
     id: `tool:${id}`,
     sequence,
     kind: 'tool',
     title: title(toolName, string(input?.filename)),
     state: error ? 'failed' : 'complete',
-    detail: error ?? string(tool?.output) ?? string(input?.url),
+    detail:
+      error ??
+      (toolName === 'describeBinding'
+        ? output?.match(/^Title: ([^\r\n]+)/m)?.[1]
+        : (output ?? string(input?.url))),
   }
 }
 
@@ -385,7 +395,8 @@ export class ActivityTracker {
     }
     if (
       (event.type === 'toolCodeDelta' || event.type === 'toolOutputDelta') &&
-      delta
+      delta &&
+      entry.toolName !== 'describeBinding'
     )
       this.#running.set(key, {
         ...entry,

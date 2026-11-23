@@ -102,6 +102,8 @@ summary.wisp-activity-heading::-webkit-details-marker {
 
 .wisp-activity-detail {
   margin: 0;
+  max-block-size: 10rem;
+  overflow: auto;
   padding-block-end: 6px;
   padding-inline: calc(var(--activity-icon-width) + var(--activity-gap) * 2)
     var(--activity-gap);

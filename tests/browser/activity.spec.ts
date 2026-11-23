@@ -59,3 +59,32 @@ test('shows reasoning, tool details, an approval, and a file review in the threa
   await expect(changes).toHaveCount(0)
   expect(errors).toEqual([])
 })
+
+test('reviews MCP arguments without exposing the private endpoint and links to CloudflareOS after a failed approval', async ({
+  page,
+}) => {
+  await page.goto('/?framework=vue&activity&mcp')
+  await page.getByRole('button', { name: 'Open chat', exact: true }).click()
+  const approval = page.getByRole('region', { name: 'Create piece draft' })
+  await expect(
+    approval.getByText('Sustainability', { exact: true }),
+  ).toBeVisible()
+  await expect(approval.getByText('en', { exact: true })).toBeVisible()
+  await expect(
+    approval.getByText('editorial_create_piece_draft', { exact: true }),
+  ).toBeHidden()
+  const details = approval
+    .locator('summary')
+    .filter({ hasText: 'Tool details' })
+  await details.click()
+  await expect(
+    approval.getByText('https://editorial.example', { exact: true }),
+  ).toBeVisible()
+  await expect(approval).not.toContainText('private-token')
+  await details.click()
+  await approval.getByRole('button', { name: 'Approve', exact: true }).click()
+  await expect(approval.getByRole('alert')).toContainText('couldn’t confirm')
+  await expect(
+    approval.getByRole('link', { name: 'Open CloudflareOS' }),
+  ).toHaveAttribute('href', /workspace\/a\?chat=1/)
+})

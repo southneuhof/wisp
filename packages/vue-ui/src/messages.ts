@@ -53,7 +53,15 @@ export const defaultMessages = {
   rejected: 'Rejected',
   approve: 'Approve',
   reject: 'Reject',
-  decideError: 'The approval could not be updated. Try again.',
+  decideError:
+    'CloudflareOS couldn’t confirm the decision. Check the request in CloudflareOS.',
+  incompleteApproval:
+    'CloudflareOS reports that these action details are incomplete.',
+  toolDetails: 'Tool details',
+  arguments: 'Arguments',
+  server: 'Server',
+  tool: 'Tool',
+  destination: 'Destination',
   pendingChanges: 'Pending changes',
   editingFiles: 'Editing files',
   previewing: 'Previewing',

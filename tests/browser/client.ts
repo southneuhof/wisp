@@ -15,6 +15,26 @@ const approval: ChatActivity = {
   state: 'pending',
   request: { kind: 'action', id: 8 },
 }
+const mcpApproval: ChatActivity = {
+  ...approval,
+  title: 'editorial-server: editorial_create_piece_draft',
+  fields: [
+    { label: 'Server', value: 'editorial-server' },
+    { label: 'Tool', value: 'editorial_create_piece_draft' },
+    { label: 'Endpoint', value: 'https://editorial.example/mcp/private-token' },
+    {
+      label: 'Arguments',
+      kind: 'json',
+      value: JSON.stringify({
+        locale: 'en',
+        piece: {
+          type: 'article-category',
+          fields: { title: 'Sustainability' },
+        },
+      }),
+    },
+  ],
+}
 
 const draftChanges: ChatDraftChanges = {
   pending: true,
@@ -32,6 +52,7 @@ const draftChanges: ChatDraftChanges = {
 
 export function createFixture(signedOut = false) {
   const activityEnabled = new URLSearchParams(location.search).has('activity')
+  const mcpEnabled = new URLSearchParams(location.search).has('mcp')
   const workspaces = [
     { id: 'a', title: 'Workspace A', role: 'build' as const },
     { id: 'b', title: 'Workspace B', role: 'build' as const },
@@ -126,7 +147,7 @@ export function createFixture(signedOut = false) {
                       state: 'complete',
                       detail: 'Found the launch checklist in the Product team.',
                     },
-                    approval,
+                    mcpEnabled ? mcpApproval : approval,
                   ] satisfies ChatActivity[],
                   draftChanges,
                 }
@@ -236,6 +257,7 @@ export function createFixture(signedOut = false) {
     },
     activity: {
       async decide(id, decision) {
+        if (mcpEnabled && decision === 'approve') throw new Error('RPC failed')
         updateConversation((conversation) => ({
           ...conversation,
           activity: conversation.activity?.map((entry) =>
