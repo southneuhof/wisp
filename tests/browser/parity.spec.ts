@@ -181,7 +181,9 @@ for (const framework of ['vue', 'react']) {
             const headerTop = document
               .querySelector('.wisp-header')
               ?.getBoundingClientRect().top
-            motion.currentTime = Number(motion.effect?.getTiming().duration) / 3
+            const timing = motion.effect?.getTiming()
+            const endTime = (timing?.delay ?? 0) + Number(timing?.duration)
+            motion.currentTime = endTime * 0.45
             const middle = shell.getBoundingClientRect().width
             const content = shell.nextElementSibling
             let reveal
@@ -208,17 +210,14 @@ for (const framework of ['vue', 'react']) {
                 outsideHit: content.contains(document.elementFromPoint(x, y)),
               }
             }
-            motion.currentTime =
-              Number(motion.effect?.getTiming().duration) * 0.98
+            motion.currentTime = endTime * 0.98
             const beforeLanding = shell.getBoundingClientRect().width
-            motion.currentTime = Number(motion.effect?.getTiming().duration)
+            motion.currentTime = endTime
             const { width: to, height } = shell.getBoundingClientRect()
             const landingRadius = parseFloat(
               getComputedStyle(shell).borderTopLeftRadius,
             )
-            if (pauseAtMiddle)
-              motion.currentTime =
-                Number(motion.effect?.getTiming().duration) / 3
+            if (pauseAtMiddle) motion.currentTime = endTime * 0.45
             else motion.finish()
             resolve({
               from,
@@ -282,6 +281,88 @@ for (const framework of ['vue', 'react']) {
     await launcher.click()
     await expect(composer).toBeVisible()
     await expect(page.locator('.wisp-chat-morph')).toHaveCount(0)
+  })
+
+  test(`${framework} softens the chat before shrinking the composer`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.goto(`/?framework=${framework}`)
+    await page.getByRole('button', { name: 'Open chat', exact: true }).click()
+    await expect(page.locator('.wisp-chat-morph')).toHaveCount(0)
+    await expect(page.locator('.wisp-thread')).toHaveCSS('mask-image', 'none')
+
+    const closing = page.evaluate(() => {
+      return new Promise<
+        | { composerPresent: false }
+        | {
+            composerPresent: true
+            frames: {
+              width: number
+              opacity: number
+              blur: number
+              clip: string
+              messageBlur: number
+            }[]
+          }
+      >((resolve) => {
+        const observer = new MutationObserver(() => {
+          const shell = document.querySelector('.wisp-chat-morph')
+          const motion = shell?.getAnimations()[0]
+          if (!shell || !motion) return
+          observer.disconnect()
+          const content = document.querySelector(
+            '.wisp-composer > :not(.wisp-chat-morph)',
+          )
+          if (!content) {
+            resolve({ composerPresent: false })
+            return
+          }
+          const thread = document.querySelector('.wisp-thread')
+          const row = thread?.querySelector(
+            '.wisp-thread-fade > div > :last-child',
+          )
+          const animations = [
+            motion,
+            ...content.getAnimations(),
+            ...(thread?.getAnimations({ subtree: true }) ?? []),
+          ]
+          const blur = (filter: string) =>
+            Number.parseFloat(filter.slice(5)) || 0
+          const frames = [0, 39, 72, 188].map((time) => {
+            for (const animation of animations) {
+              animation.pause()
+              animation.currentTime = time
+            }
+            const style = getComputedStyle(content)
+            return {
+              width: shell.getBoundingClientRect().width,
+              opacity: Number(style.opacity),
+              blur: blur(style.filter),
+              clip: style.clipPath,
+              messageBlur: row ? blur(getComputedStyle(row).filter) : 0,
+            }
+          })
+          for (const animation of animations) animation.finish()
+          resolve({ composerPresent: true, frames })
+        })
+        observer.observe(document.body, { subtree: true, childList: true })
+      })
+    })
+    await page.getByRole('button', { name: 'Close chat' }).click()
+    const result = await closing
+    expect(result.composerPresent).toBe(true)
+    if (!result.composerPresent) return
+    const [start, hold, beforeShrink, shrinking] = result.frames
+    expect(start).toMatchObject({ opacity: 1, blur: 0, messageBlur: 0 })
+    expect(hold).toMatchObject({ opacity: 1, blur: 0 })
+    expect(beforeShrink.width).toBeCloseTo(start.width, 0)
+    expect(beforeShrink.blur).toBeGreaterThan(hold.blur)
+    expect(shrinking.width).toBeLessThan(start.width)
+    expect(shrinking.clip).toMatch(/^inset\(/)
+    expect(shrinking.messageBlur).toBeGreaterThan(4)
+    await expect(page.locator('.wisp-composer')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Open chat' })).toBeFocused()
   })
 
   test(`${framework} reveals the chat after the composer starts expanding`, async ({

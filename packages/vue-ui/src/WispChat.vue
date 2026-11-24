@@ -1145,99 +1145,103 @@ onBeforeUnmount(() => {
           v-if="account && workspace"
           :model-id="selectedModelId"
         >
-          <ComposerPrimitiveAttachmentDropzone
-            @drop.prevent
-            @dragover.prevent
-            v-if="composerOpen"
-            class="wisp-composer wisp-pointer-events-auto wisp-relative wisp-z-30 -wisp-mt-5 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-rounded-3xl wisp-bg-surface-container-high wisp-text-on-surface wisp-shadow-lg"
-            :disabled="
-              connectionState !== 'ready' || isBusy || !selectedModelId
-            "
-          >
-            <div class="wisp-relative wisp-z-10">
-              <div
-                v-if="retryRequest && connectionState === 'ready'"
-                class="wisp-px-3 wisp-pb-2"
-              >
-                <button
-                  type="button"
-                  aria-label="Retry request"
-                  class="wisp-text-xs wisp-font-medium wisp-text-primary wisp-underline wisp-underline-offset-2 disabled:wisp-opacity-50"
-                  :disabled="isBusy"
-                  @click="retryLastRequest"
+          <Transition name="wisp-foreground">
+            <ComposerPrimitiveAttachmentDropzone
+              @drop.prevent
+              @dragover.prevent
+              v-if="composerOpen"
+              class="wisp-composer wisp-pointer-events-auto wisp-relative wisp-z-30 -wisp-mt-5 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-rounded-3xl wisp-bg-surface-container-high wisp-text-on-surface wisp-shadow-lg"
+              :disabled="
+                connectionState !== 'ready' || isBusy || !selectedModelId
+              "
+            >
+              <div class="wisp-relative wisp-z-10">
+                <div
+                  v-if="retryRequest && connectionState === 'ready'"
+                  class="wisp-px-3 wisp-pb-2"
                 >
-                  Try again
-                </button>
-              </div>
-              <p
-                v-if="composerError"
-                class="wisp-px-3 wisp-pb-2 wisp-text-xs wisp-text-error"
-                role="alert"
-              >
-                {{ composerError }}
-              </p>
-
-              <div class="wisp-flex wisp-flex-wrap wisp-gap-2 wisp-px-2">
-                <ComposerPrimitiveAttachments>
-                  <template #default>
-                    <div
-                      class="wisp-mb-2 wisp-min-w-[180px] wisp-max-w-full wisp-rounded-xl wisp-bg-surface-container-high/70 wisp-p-2 wisp-text-on-surface wisp-shadow-sm"
-                    >
-                      <ChatAttachmentPreview :removable="true" />
-                    </div>
-                  </template>
-                </ComposerPrimitiveAttachments>
-              </div>
-
-              <div class="wisp-rounded-xl wisp-p-2">
-                <ComposerPrimitiveInput
-                  data-wisp-input
-                  class="wisp-max-h-36 wisp-min-h-11 wisp-w-full wisp-min-w-0 wisp-resize-y wisp-bg-transparent wisp-px-1 wisp-py-2 wisp-text-sm wisp-text-on-surface wisp-outline-none placeholder:wisp-text-on-surface-variant/80"
-                  placeholder="Ask me anything…"
-                  :disabled="
-                    connectionState !== 'ready' || isBusy || !selectedModelId
-                  "
-                />
-                <div class="wisp-flex wisp-items-center wisp-gap-2 wisp-pt-1">
-                  <ComposerPrimitiveAddAttachment
-                    class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-text-on-surface-variant wisp-transition hover:wisp-bg-on-surface/10 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
-                    aria-label="Add attachment"
-                    title="Add attachment"
+                  <button
+                    type="button"
+                    aria-label="Retry request"
+                    class="wisp-text-xs wisp-font-medium wisp-text-primary wisp-underline wisp-underline-offset-2 disabled:wisp-opacity-50"
+                    :disabled="isBusy"
+                    @click="retryLastRequest"
                   >
-                    <ChatIcon :size="20" name="attach_file" />
-                  </ComposerPrimitiveAddAttachment>
-                  <ChatModelPicker
-                    :models="workspace.models"
-                    :selected-id="selectedModelId"
-                    :name="selectedModelName"
-                    :busy="isBusy"
-                    :theme-style="themeStyle"
-                    @select="selectModel"
-                  />
-                  <slot name="composer-actions" :chat="chat" />
-                  <div class="wisp-flex-1" />
-                  <ComposerPrimitiveCancel
-                    v-if="uploadCount > 0 || isSelectedTurnActive"
-                    aria-label="Stop Assistant"
-                    class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-error/15 wisp-text-error wisp-transition hover:wisp-bg-error/25 focus-visible:wisp-outline-none"
-                  >
-                    <ChatIcon :size="18" name="stop" />
-                  </ComposerPrimitiveCancel>
-                  <ComposerPrimitiveSend
-                    v-else
-                    class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-primary wisp-text-on-primary wisp-transition hover:wisp-brightness-110 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
-                    aria-label="Send message"
-                    title="Send message"
+                    Try again
+                  </button>
+                </div>
+                <p
+                  v-if="composerError"
+                  class="wisp-px-3 wisp-pb-2 wisp-text-xs wisp-text-error"
+                  role="alert"
+                >
+                  {{ composerError }}
+                </p>
+
+                <div class="wisp-flex wisp-flex-wrap wisp-gap-2 wisp-px-2">
+                  <ComposerPrimitiveAttachments>
+                    <template #default>
+                      <div
+                        class="wisp-mb-2 wisp-min-w-[180px] wisp-max-w-full wisp-rounded-xl wisp-bg-surface-container-high/70 wisp-p-2 wisp-text-on-surface wisp-shadow-sm"
+                      >
+                        <ChatAttachmentPreview :removable="true" />
+                      </div>
+                    </template>
+                  </ComposerPrimitiveAttachments>
+                </div>
+
+                <div class="wisp-rounded-xl wisp-p-2">
+                  <ComposerPrimitiveInput
+                    data-wisp-input
+                    class="wisp-max-h-36 wisp-min-h-11 wisp-w-full wisp-min-w-0 wisp-resize-y wisp-bg-transparent wisp-px-1 wisp-py-2 wisp-text-sm wisp-text-on-surface wisp-outline-none placeholder:wisp-text-on-surface-variant/80"
+                    placeholder="Ask me anything…"
                     :disabled="
                       connectionState !== 'ready' || isBusy || !selectedModelId
                     "
-                  >
-                    <ChatIcon :size="18" name="send" />
-                  </ComposerPrimitiveSend>
+                  />
+                  <div class="wisp-flex wisp-items-center wisp-gap-2 wisp-pt-1">
+                    <ComposerPrimitiveAddAttachment
+                      class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-text-on-surface-variant wisp-transition hover:wisp-bg-on-surface/10 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
+                      aria-label="Add attachment"
+                      title="Add attachment"
+                    >
+                      <ChatIcon :size="20" name="attach_file" />
+                    </ComposerPrimitiveAddAttachment>
+                    <ChatModelPicker
+                      :models="workspace.models"
+                      :selected-id="selectedModelId"
+                      :name="selectedModelName"
+                      :busy="isBusy"
+                      :theme-style="themeStyle"
+                      @select="selectModel"
+                    />
+                    <slot name="composer-actions" :chat="chat" />
+                    <div class="wisp-flex-1" />
+                    <ComposerPrimitiveCancel
+                      v-if="uploadCount > 0 || isSelectedTurnActive"
+                      aria-label="Stop Assistant"
+                      class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-error/15 wisp-text-error wisp-transition hover:wisp-bg-error/25 focus-visible:wisp-outline-none"
+                    >
+                      <ChatIcon :size="18" name="stop" />
+                    </ComposerPrimitiveCancel>
+                    <ComposerPrimitiveSend
+                      v-else
+                      class="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-primary wisp-text-on-primary wisp-transition hover:wisp-brightness-110 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
+                      aria-label="Send message"
+                      title="Send message"
+                      :disabled="
+                        connectionState !== 'ready' ||
+                        isBusy ||
+                        !selectedModelId
+                      "
+                    >
+                      <ChatIcon :size="18" name="send" />
+                    </ComposerPrimitiveSend>
+                  </div>
                 </div>
               </div>
-            </div>
-          </ComposerPrimitiveAttachmentDropzone>
+            </ComposerPrimitiveAttachmentDropzone>
+          </Transition>
         </ChatModelContext>
       </div>
     </div>

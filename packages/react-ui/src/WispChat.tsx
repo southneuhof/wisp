@@ -746,99 +746,101 @@ export function WispChat(p: WispChatProps) {
                   className={`wisp-message-blur ${open && ready && scrolled ? 'wisp-blur-visible' : ''}`}
                 />
               </div>
-              {open && workspace && (
-                <ComposerPrimitive.AttachmentDropzone
-                  className="wisp-composer wisp-pointer-events-auto wisp-relative wisp-z-30 -wisp-mt-5 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-rounded-3xl wisp-bg-surface-container-high wisp-text-on-surface wisp-shadow-lg"
-                  disabled={!ready || busy || !selectedModel}
-                >
-                  <ComposerPrimitive.Root className="wisp-relative wisp-z-10">
-                    {error && (
-                      <div
-                        role="alert"
-                        className="wisp-px-3 wisp-py-2 wisp-text-xs wisp-text-error"
-                      >
-                        {error}
-                        {retry && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            className="wisp-ml-2 wisp-underline"
-                            onClick={() => {
-                              setSending(true)
-                              setError('')
-                              void client.conversations
-                                .send(retry)
-                                .then(() => setRetry(undefined))
-                                .catch(() =>
-                                  setError(
-                                    'Assistant could not finish the response. Try sending your question again.',
-                                  ),
-                                )
-                                .finally(() => setSending(false))
-                            }}
-                          >
-                            Try again
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <div className="wisp-flex wisp-flex-wrap wisp-gap-2 wisp-px-2">
-                      <ComposerPrimitive.Attachments
-                        components={{ Attachment: ComposerAttachment }}
-                      />
-                    </div>
-                    <div className="wisp-rounded-xl wisp-p-2">
-                      <ComposerPrimitive.Input
-                        minRows={2}
-                        data-wisp-input
-                        className="wisp-max-h-36 wisp-min-h-11 wisp-w-full wisp-min-w-0 wisp-resize-y wisp-bg-transparent wisp-px-1 wisp-py-2 wisp-text-sm wisp-text-on-surface wisp-outline-none placeholder:wisp-text-on-surface-variant/80"
-                        placeholder="Ask me anything…"
-                        disabled={!ready || busy || !selectedModel}
-                      />
-                      <div className="wisp-flex wisp-items-center wisp-gap-2 wisp-pt-1">
-                        <ComposerPrimitive.AddAttachment
-                          className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-text-on-surface-variant wisp-transition hover:wisp-bg-on-surface/10 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
-                          aria-label="Add attachment"
-                          title="Add attachment"
+              <ChatPresence show={open && !!workspace}>
+                {workspace && (
+                  <ComposerPrimitive.AttachmentDropzone
+                    className="wisp-composer wisp-pointer-events-auto wisp-relative wisp-z-30 -wisp-mt-5 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-rounded-3xl wisp-bg-surface-container-high wisp-text-on-surface wisp-shadow-lg"
+                    disabled={!ready || busy || !selectedModel}
+                  >
+                    <ComposerPrimitive.Root className="wisp-relative wisp-z-10">
+                      {error && (
+                        <div
+                          role="alert"
+                          className="wisp-px-3 wisp-py-2 wisp-text-xs wisp-text-error"
                         >
-                          <ChatIcon size={20} name="attach_file" />
-                        </ComposerPrimitive.AddAttachment>
-                        <ChatModelPicker
-                          models={workspace?.models ?? []}
-                          selectedId={selectedModel}
-                          name={
-                            workspace?.models.find(
-                              (m) => m.id === selectedModel,
-                            )?.name ?? 'Select model'
-                          }
-                          busy={busy}
-                          themeStyle={themeStyle}
-                          onSelect={actions.selectModel}
+                          {error}
+                          {retry && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              className="wisp-ml-2 wisp-underline"
+                              onClick={() => {
+                                setSending(true)
+                                setError('')
+                                void client.conversations
+                                  .send(retry)
+                                  .then(() => setRetry(undefined))
+                                  .catch(() =>
+                                    setError(
+                                      'Assistant could not finish the response. Try sending your question again.',
+                                    ),
+                                  )
+                                  .finally(() => setSending(false))
+                              }}
+                            >
+                              Try again
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div className="wisp-flex wisp-flex-wrap wisp-gap-2 wisp-px-2">
+                        <ComposerPrimitive.Attachments
+                          components={{ Attachment: ComposerAttachment }}
                         />
-                        {p.composerActions?.(chat)}
-                        <div className="wisp-flex-1" />
-                        {workspace?.uploading || workspace?.running ? (
-                          <ComposerPrimitive.Cancel
-                            aria-label="Stop Assistant"
-                            className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-error/15 wisp-text-error wisp-transition hover:wisp-bg-error/25 focus-visible:wisp-outline-none"
-                          >
-                            <ChatIcon size={18} name="stop" />
-                          </ComposerPrimitive.Cancel>
-                        ) : (
-                          <ComposerPrimitive.Send
-                            className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-primary wisp-text-on-primary wisp-transition hover:wisp-brightness-110 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
-                            aria-label="Send message"
-                            title="Send message"
-                            disabled={!ready || busy || !selectedModel}
-                          >
-                            <ChatIcon size={18} name="send" />
-                          </ComposerPrimitive.Send>
-                        )}
                       </div>
-                    </div>
-                  </ComposerPrimitive.Root>
-                </ComposerPrimitive.AttachmentDropzone>
-              )}
+                      <div className="wisp-rounded-xl wisp-p-2">
+                        <ComposerPrimitive.Input
+                          minRows={2}
+                          data-wisp-input
+                          className="wisp-max-h-36 wisp-min-h-11 wisp-w-full wisp-min-w-0 wisp-resize-y wisp-bg-transparent wisp-px-1 wisp-py-2 wisp-text-sm wisp-text-on-surface wisp-outline-none placeholder:wisp-text-on-surface-variant/80"
+                          placeholder="Ask me anything…"
+                          disabled={!ready || busy || !selectedModel}
+                        />
+                        <div className="wisp-flex wisp-items-center wisp-gap-2 wisp-pt-1">
+                          <ComposerPrimitive.AddAttachment
+                            className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-text-on-surface-variant wisp-transition hover:wisp-bg-on-surface/10 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
+                            aria-label="Add attachment"
+                            title="Add attachment"
+                          >
+                            <ChatIcon size={20} name="attach_file" />
+                          </ComposerPrimitive.AddAttachment>
+                          <ChatModelPicker
+                            models={workspace?.models ?? []}
+                            selectedId={selectedModel}
+                            name={
+                              workspace?.models.find(
+                                (m) => m.id === selectedModel,
+                              )?.name ?? 'Select model'
+                            }
+                            busy={busy}
+                            themeStyle={themeStyle}
+                            onSelect={actions.selectModel}
+                          />
+                          {p.composerActions?.(chat)}
+                          <div className="wisp-flex-1" />
+                          {workspace?.uploading || workspace?.running ? (
+                            <ComposerPrimitive.Cancel
+                              aria-label="Stop Assistant"
+                              className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-error/15 wisp-text-error wisp-transition hover:wisp-bg-error/25 focus-visible:wisp-outline-none"
+                            >
+                              <ChatIcon size={18} name="stop" />
+                            </ComposerPrimitive.Cancel>
+                          ) : (
+                            <ComposerPrimitive.Send
+                              className="wisp-flex wisp-h-9 wisp-w-9 wisp-shrink-0 wisp-items-center wisp-justify-center wisp-rounded-full wisp-bg-primary wisp-text-on-primary wisp-transition hover:wisp-brightness-110 focus-visible:wisp-outline-none disabled:wisp-opacity-40"
+                              aria-label="Send message"
+                              title="Send message"
+                              disabled={!ready || busy || !selectedModel}
+                            >
+                              <ChatIcon size={18} name="send" />
+                            </ComposerPrimitive.Send>
+                          )}
+                        </div>
+                      </div>
+                    </ComposerPrimitive.Root>
+                  </ComposerPrimitive.AttachmentDropzone>
+                )}
+              </ChatPresence>
             </div>
           </ThreadPrimitive.Root>
         </MessagesContext.Provider>

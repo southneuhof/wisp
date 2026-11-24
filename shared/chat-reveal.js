@@ -23,7 +23,7 @@ export function animateChatReveal(root, opening, previousEdge) {
       Math.min(1, Math.abs(to - from) / (hidden - shown)),
     easing: opening
       ? 'cubic-bezier(0.25, 0.45, 0.32, 1)'
-      : 'cubic-bezier(0.23, 0.68, 0.32, 1)',
+      : 'cubic-bezier(0.29, 0.12, 0.26, 1)',
     fill: 'both',
   }
   const maskSize = `100% ${Math.ceil(bounds.height + 2 * feather + 12)}px`

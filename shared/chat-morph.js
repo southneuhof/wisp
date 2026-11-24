@@ -4,6 +4,7 @@ const launcherSelector = '.wisp-chat-launcher'
 const composerSelector = '.wisp-composer'
 const easing = 'cubic-bezier(0.2, 0.75, 0.25, 1)'
 const duration = 320
+const closeDelay = 84
 
 function readSurface(element) {
   const bounds = element.getBoundingClientRect()
@@ -118,7 +119,6 @@ export function createChatMorph() {
     label?.cancel()
     shell.remove()
     delete root.dataset.wispMorph
-    root.style.removeProperty('--wisp-closing-composer-space')
   }
 
   function clearReveal() {
@@ -134,7 +134,7 @@ export function createChatMorph() {
 
   function start(root, opening) {
     const view = root.ownerDocument.defaultView
-    const composer = opening ? undefined : root.querySelector(composerSelector)
+    const composer = root.querySelector(composerSelector)
     const element =
       running?.shell ??
       (opening ? root.querySelector(launcherSelector) : composer)
@@ -144,26 +144,24 @@ export function createChatMorph() {
         ? readSurface(element)
         : undefined
 
-    const style = composer && view?.getComputedStyle(composer)
-    const composerSpace = style
-      ? composer.getBoundingClientRect().height +
-        parseFloat(style.marginTop) +
-        parseFloat(style.marginBottom)
-      : 0
-
+    const movingContents = running?.contents?.effect.target
+    const style = movingContents && view.getComputedStyle(movingContents)
+    const contentsFrom = style && {
+      opacity: style.opacity,
+      filter: style.filter,
+    }
     const edge = reveal?.edge()
     cancel()
     if (from?.width && from.height)
-      pending = { root, opening, from, composerSpace, edge }
+      pending = { root, opening, from, contentsFrom, edge }
   }
 
   function play() {
     if (!pending) return
-    const { root, opening, from, composerSpace, edge } = pending
+    const { root, opening, from, contentsFrom, edge } = pending
     pending = undefined
-    const target = root.querySelector(
-      opening ? composerSelector : launcherSelector,
-    )
+    const composer = root.querySelector(composerSelector)
+    const target = opening ? composer : root.querySelector(launcherSelector)
     if (!target) return
     const to = readSurface(target)
     const { width, height } = to
@@ -174,16 +172,12 @@ export function createChatMorph() {
     shell.setAttribute('aria-hidden', 'true')
     shell.style.width = `${width}px`
     shell.style.height = `${height}px`
-    const content = opening ? target.firstElementChild : undefined
-    if (composerSpace > 0) {
-      root.style.setProperty(
-        '--wisp-closing-composer-space',
-        `${composerSpace}px`,
-      )
-    }
+    const content = composer?.firstElementChild
     root.dataset.wispMorph = opening ? 'opening' : 'closing'
-    // Paint the opening surface above the chat backdrop, in the composer's layer.
-    const layer = opening ? target : root
+    // Both directions paint over the chat backdrop.
+    const layer = opening
+      ? target
+      : (root.querySelector('.wisp-floating') ?? root)
     layer.prepend(shell)
 
     // Stretch horizontally before the panel rises. Closing gathers the height first.
@@ -205,7 +199,14 @@ export function createChatMorph() {
       radiusY: midHeight * 0.44,
     }
     const last = { ...to, offset: 1 }
-    const timing = { duration, easing, fill: 'both' }
+    const timing = opening
+      ? { duration, easing, fill: 'both' }
+      : {
+          delay: closeDelay,
+          duration: duration - closeDelay,
+          easing: 'cubic-bezier(0.35, 0, 0.25, 1)',
+          fill: 'both',
+        }
     const motion = shell.animate(
       [first, middle, last].map((surface) => keyframe(surface, width, height)),
       timing,
@@ -214,13 +215,22 @@ export function createChatMorph() {
       clipKeyframes(first, middle, last, content.getBoundingClientRect()),
       timing,
     )
+    const sharp = { opacity: 1, filter: 'blur(0px)' }
+    const blurred = { opacity: 0, filter: 'blur(16px)' }
     const contents = content?.animate(
-      [
-        { opacity: 0, filter: 'blur(16px)' },
-        { opacity: 0, filter: 'blur(16px)', offset: 0.35 },
-        { opacity: 1, filter: 'blur(0px)' },
-      ],
-      { duration, fill: 'both' },
+      opening
+        ? contentsFrom
+          ? [contentsFrom, sharp]
+          : [blurred, { ...blurred, offset: 0.35 }, sharp]
+        : [contentsFrom ?? sharp, blurred],
+      opening
+        ? { duration, fill: 'both' }
+        : {
+            delay: contentsFrom ? 0 : 40,
+            duration: 108,
+            easing: 'cubic-bezier(0.42, 0, 0.5, 1)',
+            fill: 'both',
+          },
     )
 
     const labelElement = root.querySelector(launcherSelector)?.firstElementChild
@@ -228,7 +238,7 @@ export function createChatMorph() {
       opening
         ? [{ opacity: 1 }, { opacity: 0, offset: 0.18 }, { opacity: 0 }]
         : [{ opacity: 0 }, { opacity: 0, offset: 0.72 }, { opacity: 1 }],
-      { duration, fill: 'both' },
+      opening ? { duration, fill: 'both' } : timing,
     )
 
     const foreground = animateChatReveal(root, opening, edge)

@@ -10,7 +10,7 @@
   filter: none;
 }
 
-.wisp-ui[data-wisp-morph='opening'] .wisp-composer {
+.wisp-ui[data-wisp-morph] .wisp-composer {
   background: transparent;
   box-shadow: none;
 }
@@ -21,6 +21,7 @@
   left: 0;
   z-index: 30;
   transform-origin: top left;
+  visibility: visible;
   pointer-events: none;
 }
 
@@ -36,11 +37,6 @@
 .wisp-floating-open {
   visibility: visible;
   transition-delay: 0s;
-}
-
-.wisp-ui[data-wisp-morph='closing'] .wisp-floating::after {
-  content: '';
-  flex: 0 0 var(--wisp-closing-composer-space, 0px);
 }
 
 .wisp-foreground-leave-active {
