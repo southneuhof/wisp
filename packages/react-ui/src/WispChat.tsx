@@ -1,5 +1,12 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import {
   AssistantRuntimeProvider,
@@ -15,6 +22,7 @@ import type {
 } from '@assistant-ui/react'
 import type { Conversation, WorkspaceState } from '@southneuhof/wisp-core'
 import type { WispChatBinding } from '@southneuhof/wisp-react'
+import { createChatMorph } from '../../../shared/chat-morph.js'
 import {
   ChatConversationPicker,
   ChatModelPicker,
@@ -24,7 +32,7 @@ import {
   ChatIconButton,
   ChatSpinner,
   MessagesContext,
-  Transition,
+  ChatPresence,
 } from './primitives.js'
 import { ChatIcon } from './ChatIcon.js'
 import { ChatSignIn } from './ChatSignIn.js'
@@ -129,6 +137,7 @@ export function WispChat(p: WispChatProps) {
       bottom: true,
     }),
     focusPending = useRef(false)
+  const [chatMorph] = useState(createChatMorph)
   const connecting =
     snapshot.status === 'starting' ||
     snapshot.status === 'signing-in' ||
@@ -338,19 +347,30 @@ export function WispChat(p: WispChatProps) {
     setScrolled(false)
     void runtime.thread.composer.reset()
   }, [scopeKey, runtime])
-  const close = useCallback((restoreFocus = true) => {
-    const viewport = floating.current?.querySelector('.wisp-thread-fade')
-    if (viewport)
-      scroll.current = {
-        top: viewport.scrollTop,
-        bottom:
-          viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop <=
-          1,
-      }
-    setOpen(false)
-    focusPending.current = false
-    if (restoreFocus) requestAnimationFrame(() => launcher.current?.focus())
-  }, [])
+  const close = useCallback(
+    (restoreFocus = true) => {
+      const viewport = floating.current?.querySelector('.wisp-thread-fade')
+      if (viewport)
+        scroll.current = {
+          top: viewport.scrollTop,
+          bottom:
+            viewport.scrollHeight -
+              viewport.clientHeight -
+              viewport.scrollTop <=
+            1,
+        }
+      const root = launcher.current?.parentElement
+      if (root) chatMorph.start(root, false)
+      setOpen(false)
+      focusPending.current = false
+      if (restoreFocus) requestAnimationFrame(() => launcher.current?.focus())
+    },
+    [chatMorph],
+  )
+  useLayoutEffect(() => {
+    chatMorph.play()
+  }, [open, chatMorph])
+  useLayoutEffect(() => () => chatMorph.cancel(), [chatMorph])
   useEffect(() => {
     const outside = (e: PointerEvent) => {
       if (
@@ -512,23 +532,25 @@ export function WispChat(p: WispChatProps) {
       <DownloadContext.Provider value={download}>
         <MessagesContext.Provider value={t}>
           <ThreadPrimitive.Root className="wisp-ui" style={themeStyle}>
-            <Transition show={!open} name="wisp-launcher">
-              <button
-                ref={launcher}
-                type="button"
-                aria-label={t.openChat}
-                aria-expanded={open}
-                onClick={() => {
-                  focusPending.current = true
-                  setOpen(true)
-                }}
-                className="wisp-fixed wisp-bottom-5 wisp-left-1/2 wisp-z-30 wisp-flex -wisp-translate-x-1/2 wisp-items-center wisp-gap-2 wisp-rounded-full wisp-bg-primary wisp-px-3 wisp-py-2 wisp-text-on-primary wisp-shadow-lg wisp-transition hover:wisp-brightness-110 focus-visible:wisp-outline-none focus-visible:wisp-ring-2 focus-visible:wisp-ring-primary focus-visible:wisp-ring-offset-2"
-              >
-                <span className="wisp-text-[11px] wisp-font-semibold wisp-tracking-wide">
-                  {p.title || t.openChat}
-                </span>
-              </button>
-            </Transition>
+            <button
+              ref={launcher}
+              type="button"
+              aria-label={t.openChat}
+              aria-expanded={open}
+              aria-hidden={open}
+              tabIndex={open ? -1 : undefined}
+              onClick={() => {
+                const root = launcher.current?.parentElement
+                if (root) chatMorph.start(root, true)
+                focusPending.current = true
+                setOpen(true)
+              }}
+              className="wisp-chat-launcher wisp-fixed wisp-bottom-5 wisp-left-1/2 wisp-z-30 wisp-flex -wisp-translate-x-1/2 wisp-items-center wisp-gap-2 wisp-rounded-full wisp-bg-primary wisp-px-3 wisp-py-2 wisp-text-on-primary wisp-shadow-lg wisp-transition-[filter] hover:wisp-brightness-110 focus-visible:wisp-outline-none focus-visible:wisp-ring-2 focus-visible:wisp-ring-primary focus-visible:wisp-ring-offset-2"
+            >
+              <span className="wisp-text-[11px] wisp-font-semibold wisp-tracking-wide">
+                {p.title || t.openChat}
+              </span>
+            </button>
             <div
               ref={floating}
               className={`wisp-floating wisp-pointer-events-none wisp-fixed wisp-inset-x-0 wisp-bottom-0 wisp-z-30 wisp-flex wisp-max-h-[calc(100dvh-16px)] wisp-flex-col wisp-items-center wisp-px-4 ${open ? 'wisp-floating-open' : ''}`}
@@ -540,7 +562,7 @@ export function WispChat(p: WispChatProps) {
               <div className="wisp-history wisp-pointer-events-auto wisp-relative wisp-mb-0 wisp-flex wisp-h-auto wisp-min-h-16 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-flex-col">
                 <div aria-hidden="true" className="wisp-backdrop" />
                 <div aria-hidden="true" className="wisp-backdrop-extra" />
-                <Transition show={open}>
+                <ChatPresence show={open}>
                   <div className="wisp-header wisp-pointer-events-auto wisp-relative wisp-z-30 wisp-mb-2 wisp-flex wisp-min-h-10 wisp-w-full wisp-shrink-0 wisp-items-center wisp-justify-between wisp-gap-2">
                     {p.header ? (
                       p.header(context)
@@ -597,11 +619,11 @@ export function WispChat(p: WispChatProps) {
                       </>
                     )}
                   </div>
-                </Transition>
-                <Transition show={open}>
+                </ChatPresence>
+                <ChatPresence show={open}>
                   <div
                     aria-label="Chat with assistant"
-                    className="wisp-pointer-events-auto wisp-relative wisp-z-10 wisp-flex wisp-h-auto wisp-min-h-0 wisp-w-full wisp-flex-col wisp-justify-end"
+                    className="wisp-thread wisp-pointer-events-auto wisp-relative wisp-z-10 wisp-flex wisp-h-auto wisp-min-h-0 wisp-w-full wisp-flex-col wisp-justify-end"
                   >
                     {!account ? (
                       connecting ? (
@@ -718,13 +740,13 @@ export function WispChat(p: WispChatProps) {
                       </ThreadPrimitive.Viewport>
                     )}
                   </div>
-                </Transition>
+                </ChatPresence>
                 <div
                   aria-hidden="true"
                   className={`wisp-message-blur ${open && ready && scrolled ? 'wisp-blur-visible' : ''}`}
                 />
               </div>
-              <Transition show={open && !!workspace}>
+              {open && workspace && (
                 <ComposerPrimitive.AttachmentDropzone
                   className="wisp-composer wisp-pointer-events-auto wisp-relative wisp-z-30 -wisp-mt-5 wisp-w-full wisp-max-w-[680px] wisp-shrink-0 wisp-rounded-3xl wisp-bg-surface-container-high wisp-text-on-surface wisp-shadow-lg"
                   disabled={!ready || busy || !selectedModel}
@@ -816,7 +838,7 @@ export function WispChat(p: WispChatProps) {
                     </div>
                   </ComposerPrimitive.Root>
                 </ComposerPrimitive.AttachmentDropzone>
-              </Transition>
+              )}
             </div>
           </ThreadPrimitive.Root>
         </MessagesContext.Provider>
