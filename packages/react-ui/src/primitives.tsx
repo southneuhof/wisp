@@ -72,7 +72,8 @@ export function ChatPresence({
 }) {
   const [retained, setRetained] = useState(show)
   useLayoutEffect(() => {
-    if (show || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (show || reduce?.matches !== false) {
       setRetained(show)
       return
     }

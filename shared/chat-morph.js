@@ -140,7 +140,7 @@ export function createChatMorph() {
       (opening ? root.querySelector(launcherSelector) : composer)
     const from =
       element?.animate &&
-      !view?.matchMedia('(prefers-reduced-motion: reduce)').matches
+      view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === false
         ? readSurface(element)
         : undefined
 
