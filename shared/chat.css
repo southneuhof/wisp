@@ -1,11 +1,31 @@
-.wisp-launcher-enter-active,
-.wisp-launcher-leave-active {
-  transition: opacity 180ms ease;
+.wisp-chat-launcher[aria-hidden='true'] {
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.wisp-launcher-enter-from,
-.wisp-launcher-leave-to {
-  opacity: 0;
+.wisp-ui[data-wisp-morph] > .wisp-chat-launcher {
+  visibility: visible;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
+.wisp-ui[data-wisp-morph='opening'] .wisp-composer {
+  background: transparent;
+  box-shadow: none;
+}
+
+.wisp-chat-morph {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.wisp-composer > .wisp-chat-morph {
+  z-index: 0;
 }
 
 .wisp-floating {
@@ -18,33 +38,17 @@
   transition-delay: 0s;
 }
 
-.wisp-foreground-enter-active,
-.wisp-foreground-leave-active {
-  transform-origin: center bottom;
-  will-change: opacity, filter, scale;
-  transition:
-    opacity 280ms ease,
-    filter 280ms ease,
-    scale 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+.wisp-ui[data-wisp-morph='closing'] .wisp-floating::after {
+  content: '';
+  flex: 0 0 var(--wisp-closing-composer-space, 0px);
 }
 
-.wisp-foreground-enter-from {
-  opacity: 0;
-  filter: blur(16px);
-  scale: 1.08;
+.wisp-foreground-leave-active {
+  transition: visibility 280ms linear;
 }
 
 .wisp-foreground-leave-to {
-  opacity: 0;
-  filter: blur(16px);
-  scale: 1.02;
-}
-
-.wisp-foreground-enter-to,
-.wisp-foreground-leave-from {
-  opacity: 1;
-  filter: blur(0);
-  scale: 1;
+  visibility: hidden;
 }
 
 .wisp-backdrop {
@@ -246,13 +250,10 @@
     transition-delay: 1ms;
   }
 
-  .wisp-launcher-enter-active,
-  .wisp-launcher-leave-active,
   .wisp-backdrop,
   .wisp-backdrop-extra,
   .wisp-message-blur,
   .wisp-thread-fade,
-  .wisp-foreground-enter-active,
   .wisp-foreground-leave-active {
     transition-duration: 1ms;
   }

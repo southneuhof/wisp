@@ -1,13 +1,11 @@
 import {
-  cloneElement,
   forwardRef,
   createContext,
   useContext,
-  useEffect,
-  useRef,
+  useLayoutEffect,
   useState,
 } from 'react'
-import type { ButtonHTMLAttributes, ReactElement, SVGProps } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, SVGProps } from 'react'
 import { defaultMessages } from './messages.js'
 import { ChatIcon } from './ChatIcon.js'
 export const MessagesContext = createContext(defaultMessages)
@@ -65,47 +63,21 @@ export function ChatSpinner(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-export function Transition({
+export function ChatPresence({
   show,
-  name = 'wisp-foreground',
   children,
 }: {
   show: boolean
-  name?: string
-  children: ReactElement<{ className?: string }>
+  children: ReactNode
 }) {
-  const [phase, setPhase] = useState(show ? 'enter-from' : 'hidden')
-  const current = useRef(show)
-  current.current = show
-  useEffect(() => {
-    let frame = 0,
-      next = 0
-    let timer: ReturnType<typeof setTimeout> | undefined
-    if (show) {
-      setPhase('enter-from')
-      frame = requestAnimationFrame(() => {
-        next = requestAnimationFrame(() => {
-          setPhase('enter-to')
-          timer = setTimeout(() => {
-            if (current.current) setPhase('shown')
-          }, 280)
-        })
-      })
-    } else {
-      setPhase((previous) => (previous === 'hidden' ? 'hidden' : 'leave-to'))
-      timer = setTimeout(() => {
-        if (!current.current) setPhase('hidden')
-      }, 280)
+  const [retained, setRetained] = useState(show)
+  useLayoutEffect(() => {
+    if (show || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setRetained(show)
+      return
     }
-    return () => {
-      cancelAnimationFrame(frame)
-      cancelAnimationFrame(next)
-      clearTimeout(timer)
-    }
+    const timer = window.setTimeout(() => setRetained(false), 280)
+    return () => window.clearTimeout(timer)
   }, [show])
-  if (phase === 'hidden') return null
-  if (phase === 'shown') return children
-  return cloneElement(children, {
-    className: `${children.props.className ?? ''} ${name}-${phase} ${name}-${phase.startsWith('enter') ? 'enter' : 'leave'}-active`,
-  })
+  return show || retained ? children : null
 }
