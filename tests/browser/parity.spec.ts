@@ -354,6 +354,9 @@ for (const framework of ['vue', 'react']) {
     expect(result.composerPresent).toBe(true)
     if (!result.composerPresent) return
     const [start, hold, beforeShrink, shrinking] = result.frames
+    if (!start || !hold || !beforeShrink || !shrinking) {
+      throw new Error('Expected four samples of the closing animation.')
+    }
     expect(start).toMatchObject({ opacity: 1, blur: 0, messageBlur: 0 })
     expect(hold).toMatchObject({ opacity: 1, blur: 0 })
     expect(beforeShrink.width).toBeCloseTo(start.width, 0)
